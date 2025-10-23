@@ -56,6 +56,9 @@
   "settings.apiKeyTest.button": "Schlüssel testen",
   "settings.apiKeyTest.status.testing": "Wird getestet...",
   "settings.apiKeyTest.status.success": "Erfolg! Ihr API-Schlüssel funktioniert korrekt.",
-  "settings.apiKeyTest.status.error": "Fehler: {message}",
+  "settings.apiKeyTest.status.error.generic": "Fehler: {message}",
+  "settings.apiKeyTest.status.error.invalidKey.start": "Fehler: Dieser API-Schlüssel ist ungültig. Bitte überprüfen Sie ihn oder ",
+  "settings.apiKeyTest.status.error.invalidKey.linkText": "erstellen Sie einen neuen im Google AI Studio",
+  "settings.apiKeyTest.status.error.invalidKey.end": ".",
   "settings.button.done": "Fertig"
 }

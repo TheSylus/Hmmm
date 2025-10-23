@@ -8,12 +8,14 @@ export const ApiKeyTester: React.FC = () => {
     const [apiKey, setApiKey] = useState('');
     const [status, setStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [isInvalidKeyError, setIsInvalidKeyError] = useState(false);
 
     const handleTestKey = async () => {
         if (!apiKey.trim()) return;
         
         setStatus('testing');
         setErrorMessage(null);
+        setIsInvalidKeyError(false);
         
         try {
             // We create a temporary, isolated client for the test.
@@ -27,6 +29,12 @@ export const ApiKeyTester: React.FC = () => {
         } catch (e) {
             setStatus('error');
             const message = e instanceof Error ? e.message : 'An unknown error occurred.';
+
+            // Check for the specific invalid key error from Google API
+            if (message.includes('API key not valid') || message.includes('API_KEY_INVALID')) {
+                setIsInvalidKeyError(true);
+            }
+            
             // Clean up common unhelpful error prefixes
             setErrorMessage(message.replace(/\[\w+\/\w+\]\s*/, ''));
             console.error("API Key Test Failed:", e);
@@ -45,7 +53,23 @@ export const ApiKeyTester: React.FC = () => {
             case 'success':
                 return <p className="text-sm text-green-600 dark:text-green-400">{t('settings.apiKeyTest.status.success')}</p>;
             case 'error':
-                return <p className="text-sm text-red-500 dark:text-red-400">{t('settings.apiKeyTest.status.error', { message: errorMessage })}</p>;
+                if (isInvalidKeyError) {
+                    return (
+                        <p className="text-sm text-red-500 dark:text-red-400">
+                            {t('settings.apiKeyTest.status.error.invalidKey.start')}
+                            <a 
+                                href="https://aistudio.google.com/app/apikey" 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="underline hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                            >
+                                {t('settings.apiKeyTest.status.error.invalidKey.linkText')}
+                            </a>
+                            {t('settings.apiKeyTest.status.error.invalidKey.end')}
+                        </p>
+                    );
+                }
+                return <p className="text-sm text-red-500 dark:text-red-400">{t('settings.apiKeyTest.status.error.generic', { message: errorMessage })}</p>;
             default:
                 return null;
         }

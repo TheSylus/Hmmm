@@ -60,7 +60,10 @@ const enTranslations = {
   "settings.apiKeyTest.button": "Test Key",
   "settings.apiKeyTest.status.testing": "Testing...",
   "settings.apiKeyTest.status.success": "Success! Your API key is working correctly.",
-  "settings.apiKeyTest.status.error": "Error: {message}",
+  "settings.apiKeyTest.status.error.generic": "Error: {message}",
+  "settings.apiKeyTest.status.error.invalidKey.start": "Error: This API key is invalid. Please double-check it or ",
+  "settings.apiKeyTest.status.error.invalidKey.linkText": "create a new one in Google AI Studio",
+  "settings.apiKeyTest.status.error.invalidKey.end": ".",
   "settings.button.done": "Done"
 };
 
@@ -122,7 +125,10 @@ const deTranslations = {
   "settings.apiKeyTest.button": "Schlüssel testen",
   "settings.apiKeyTest.status.testing": "Wird getestet...",
   "settings.apiKeyTest.status.success": "Erfolg! Ihr API-Schlüssel funktioniert korrekt.",
-  "settings.apiKeyTest.status.error": "Fehler: {message}",
+  "settings.apiKeyTest.status.error.generic": "Fehler: {message}",
+  "settings.apiKeyTest.status.error.invalidKey.start": "Fehler: Dieser API-Schlüssel ist ungültig. Bitte überprüfen Sie ihn oder ",
+  "settings.apiKeyTest.status.error.invalidKey.linkText": "erstellen Sie einen neuen im Google AI Studio",
+  "settings.apiKeyTest.status.error.invalidKey.end": ".",
   "settings.button.done": "Fertig"
 };
 
