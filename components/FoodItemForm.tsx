@@ -1,11 +1,13 @@
 import React, { useState, FormEvent, useRef, useEffect } from 'react';
 import { FoodItem, NutriScore } from '../types';
-import { BoundingBox, analyzeFoodImage } from '../services/geminiService';
+import { BoundingBox, analyzeFoodImage, analyzeIngredientsImage } from '../services/geminiService';
 import { CameraCapture } from './CameraCapture';
 import { ImageCropper } from './ImageCropper';
-import { StarIcon, SparklesIcon, CameraIcon, PlusCircleIcon, XMarkIcon } from './Icons';
+import { StarIcon, SparklesIcon, CameraIcon, PlusCircleIcon, XMarkIcon, DocumentTextIcon } from './Icons';
 import { useTranslation } from '../i18n';
 import { useAppSettings } from '../contexts/AppSettingsContext';
+import { translateTexts } from '../services/translationService';
+import { AllergenDisplay } from './AllergenDisplay';
 
 interface FoodItemFormProps {
   onSaveItem: (item: Omit<FoodItem, 'id'>) => void;
@@ -23,7 +25,7 @@ const nutriScoreColors: Record<NutriScore, string> = {
 };
 
 export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel, initialData }) => {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const { isAiEnabled } = useAppSettings();
   
   const isEditing = !!initialData;
@@ -35,13 +37,17 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   const [image, setImage] = useState<string | null>(null);
   const [nutriScore, setNutriScore] = useState<NutriScore | ''>('');
   const [tags, setTags] = useState('');
+  const [ingredients, setIngredients] = useState<string[]>([]);
+  const [allergens, setAllergens] = useState<string[]>([]);
 
   // UI/Flow state
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [scanMode, setScanMode] = useState<'main' | 'ingredients'>('main');
   const [uncroppedImage, setUncroppedImage] = useState<string | null>(null);
   const [suggestedCrop, setSuggestedCrop] = useState<BoundingBox | null | undefined>(null);
   const [isCropperOpen, setIsCropperOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isIngredientsLoading, setIngredientsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -54,6 +60,8 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
       setImage(initialData.image || null);
       setNutriScore(initialData.nutriScore || '');
       setTags(initialData.tags?.join(', ') || '');
+      setIngredients(initialData.ingredients || []);
+      setAllergens(initialData.allergens || []);
     } else {
       resetFormState();
     }
@@ -67,42 +75,106 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
     setImage(null);
     setNutriScore('');
     setTags('');
+    setIngredients([]);
+    setAllergens([]);
     setError(null);
     setIsLoading(false);
     if(fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleScanMainImage = () => {
+    setScanMode('main');
+    setIsCameraOpen(true);
+  };
+
+  const handleScanIngredients = () => {
+    setScanMode('ingredients');
+    setIsCameraOpen(true);
+  };
+
   const handleImageFromCamera = async (imageDataUrl: string) => {
     setIsCameraOpen(false);
     setError(null);
-    
-    if (isAiEnabled) {
+  
+    if (!isAiEnabled) {
+      // If AI is disabled, only the main image can be set.
+      setUncroppedImage(imageDataUrl);
+      setSuggestedCrop(null);
+      setIsCropperOpen(true);
+      return;
+    }
+  
+    if (scanMode === 'main') {
       setIsLoading(true);
       try {
         const result = await analyzeFoodImage(imageDataUrl);
-        setName(result.name || '');
-        setTags(result.tags?.join(', ') || '');
-        setNutriScore(result.nutriScore || '');
         
+        let finalName = result.name || '';
+        let finalTags = result.tags || [];
+
+        if (language !== 'en' && (finalName || finalTags.length > 0)) {
+            const textsToTranslate = [finalName, ...finalTags];
+            try {
+                const translated = await translateTexts(textsToTranslate, language);
+                if (translated.length === textsToTranslate.length) {
+                    finalName = translated[0];
+                    finalTags = translated.slice(1);
+                }
+            } catch(e) {
+                console.error("Failed to translate main AI results for form", e);
+                // Fallback to English if translation fails.
+            }
+        }
+
+        setName(finalName);
+        setTags(finalTags.join(', '));
+        setNutriScore(result.nutriScore || '');
         setUncroppedImage(imageDataUrl);
         setSuggestedCrop(result.boundingBox);
         setIsCropperOpen(true);
+
       } catch (e) {
         console.error(e);
         const errorMessage = e instanceof Error ? e.message : t('form.error.genericAiError');
         setError(errorMessage);
-        // Fallback: if AI fails, still open cropper without AI data but show the error
         setUncroppedImage(imageDataUrl);
         setSuggestedCrop(null);
         setIsCropperOpen(true);
       } finally {
         setIsLoading(false);
       }
-    } else {
-      // AI is disabled, just open the cropper
-      setUncroppedImage(imageDataUrl);
-      setSuggestedCrop(null); // No AI suggestion
-      setIsCropperOpen(true);
+    } else { // scanMode === 'ingredients'
+      setIngredientsLoading(true);
+      try {
+        const result = await analyzeIngredientsImage(imageDataUrl);
+
+        let finalIngredients = result.ingredients || [];
+        let finalAllergens = result.allergens || [];
+        const originalIngredientsCount = finalIngredients.length;
+
+        if (language !== 'en' && (finalIngredients.length > 0 || finalAllergens.length > 0)) {
+            const textsToTranslate = [...finalIngredients, ...finalAllergens];
+            try {
+                const translated = await translateTexts(textsToTranslate, language);
+                if (translated.length === textsToTranslate.length) {
+                    finalIngredients = translated.slice(0, originalIngredientsCount);
+                    finalAllergens = translated.slice(originalIngredientsCount);
+                }
+            } catch(e) {
+                console.error("Failed to translate ingredients AI results for form", e);
+                // Fallback to English if translation fails.
+            }
+        }
+
+        setIngredients(finalIngredients);
+        setAllergens(finalAllergens);
+      } catch (e) {
+        console.error(e);
+        const errorMessage = e instanceof Error ? e.message : t('form.error.ingredientsAiError');
+        setError(errorMessage);
+      } finally {
+        setIngredientsLoading(false);
+      }
     }
   };
 
@@ -121,6 +193,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setScanMode('main'); // File upload is always for the main image
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -147,6 +220,8 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
       image: image || undefined,
       nutriScore: nutriScore || undefined,
       tags: tags ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : undefined,
+      ingredients: ingredients.length > 0 ? ingredients : undefined,
+      allergens: allergens.length > 0 ? allergens : undefined,
     });
   };
 
@@ -192,7 +267,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                 <div className="grid grid-cols-2 gap-2 mt-2">
                     <button
                         type="button"
-                        onClick={() => setIsCameraOpen(true)}
+                        onClick={handleScanMainImage}
                         className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md transition disabled:bg-indigo-400 dark:disabled:bg-gray-600"
                         disabled={isLoading}
                     >
@@ -268,6 +343,47 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                         ))}
                     </div>
                 </div>
+                 {/* Ingredients and Allergens Section */}
+                 <div className="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-700/50">
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">{t('form.ingredients.title')}</h3>
+                        {isAiEnabled && (
+                            <button
+                                type="button"
+                                onClick={handleScanIngredients}
+                                disabled={isIngredientsLoading}
+                                className="flex items-center gap-2 text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-1.5 px-3 rounded-md transition disabled:opacity-50"
+                            >
+                                <DocumentTextIcon className="w-4 h-4" />
+                                <span>{t('form.button.scanIngredients')}</span>
+                            </button>
+                        )}
+                    </div>
+                    {isIngredientsLoading ? (
+                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                             <SparklesIcon className="w-4 h-4 animate-pulse" />
+                            <span>{t('form.ingredients.loading')}</span>
+                        </div>
+                    ) : (
+                        <div>
+                            {allergens.length > 0 && (
+                                <div className="mb-2">
+                                    <h4 className="text-sm font-medium text-red-600 dark:text-red-400 mb-1">{t('form.ingredients.allergens')}:</h4>
+                                    <AllergenDisplay allergens={allergens} />
+                                </div>
+                            )}
+                             {ingredients.length > 0 && (
+                                <div>
+                                    <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{t('form.ingredients.ingredientsList')}:</h4>
+                                    <p className="text-xs text-gray-500 dark:text-gray-500 italic leading-snug">{ingredients.join(', ')}</p>
+                                </div>
+                            )}
+                            {ingredients.length === 0 && allergens.length === 0 && (
+                                <p className="text-sm text-gray-400 dark:text-gray-500">{t('form.ingredients.placeholder')}</p>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
         
@@ -284,7 +400,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
             <button
               type="submit"
               className="w-full sm:flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md transition-colors text-lg disabled:bg-green-400 dark:disabled:bg-gray-600"
-              disabled={isLoading || !name || rating === 0}
+              disabled={isLoading || isIngredientsLoading || !name || rating === 0}
             >
               <PlusCircleIcon className="w-6 h-6" />
               {isEditing ? t('form.button.update') : t('form.button.save')}

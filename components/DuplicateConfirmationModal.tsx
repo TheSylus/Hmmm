@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FoodItem } from '../types';
 import { FoodItemCard } from './FoodItemCard';
 import { useTranslation } from '../i18n';
+import { translateTexts } from '../services/translationService';
 
 interface DuplicateConfirmationModalProps {
   items: FoodItem[];
@@ -12,7 +13,30 @@ interface DuplicateConfirmationModalProps {
 }
 
 export const DuplicateConfirmationModal: React.FC<DuplicateConfirmationModalProps> = ({ items, itemName, onConfirm, onCancel, onImageClick }) => {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
+  const [translatedItemName, setTranslatedItemName] = useState(itemName);
+
+  useEffect(() => {
+    let isMounted = true;
+    const translateName = async () => {
+      if (language === 'en') {
+        if(isMounted) setTranslatedItemName(itemName);
+        return;
+      }
+      try {
+        const result = await translateTexts([itemName], language);
+        if (isMounted && result.length > 0) {
+          setTranslatedItemName(result[0]);
+        }
+      } catch (e) {
+        console.error("Failed to translate item name for modal:", e);
+        if(isMounted) setTranslatedItemName(itemName); // fallback
+      }
+    };
+
+    translateName();
+    return () => { isMounted = false; }
+  }, [itemName, language]);
   
   return (
     <div
@@ -27,7 +51,7 @@ export const DuplicateConfirmationModal: React.FC<DuplicateConfirmationModalProp
       >
         <h2 id="duplicate-modal-title" className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('modal.duplicate.title')}</h2>
         <p className="text-gray-600 dark:text-gray-400 mb-4">
-          {t('modal.duplicate.description', { itemName: itemName })}
+          {t('modal.duplicate.description', { itemName: translatedItemName })}
         </p>
         
         <div className="flex-1 overflow-y-auto space-y-4 pr-2 -mr-2 bg-gray-100 dark:bg-gray-800/50 p-4 rounded-md">

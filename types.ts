@@ -8,4 +8,6 @@ export interface FoodItem {
   image?: string; // Base64 encoded image
   nutriScore?: NutriScore;
   tags?: string[];
+  ingredients?: string[];
+  allergens?: string[];
 }

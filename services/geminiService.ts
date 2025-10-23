@@ -12,14 +12,18 @@ function getApiKey(): string {
     return storedApiKey;
 }
 
-function getAiClient() {
-    const apiKey = getApiKey();
-    // Re-initialize the client only if the key has changed
-    if (!ai || apiKey !== currentApiKey) {
-        ai = new GoogleGenAI({ apiKey });
-        currentApiKey = apiKey;
+export function getAiClient() {
+    try {
+        const apiKey = getApiKey();
+        // Re-initialize the client only if the key has changed
+        if (!ai || apiKey !== currentApiKey) {
+            ai = new GoogleGenAI({ apiKey });
+            currentApiKey = apiKey;
+        }
+        return ai;
+    } catch (e) {
+        throw e;
     }
-    return ai;
 }
 
 export interface BoundingBox {
@@ -111,3 +115,65 @@ export const analyzeFoodImage = async (base64Image: string): Promise<{ name: str
     throw new Error("Bild konnte nicht mit KI analysiert werden. Bitte versuchen Sie es erneut oder geben Sie die Details manuell ein.");
   }
 };
+
+
+export const analyzeIngredientsImage = async (base64Image: string): Promise<{ ingredients: string[]; allergens: string[] }> => {
+    const match = base64Image.match(/^data:(image\/[a-z]+);base64,(.*)$/);
+    if (!match) {
+      throw new Error("Invalid base64 image string.");
+    }
+    const mimeType = match[1];
+    const data = match[2];
+  
+    try {
+      const gemini = getAiClient();
+  
+      const imagePart = {
+        inlineData: {
+          mimeType,
+          data,
+        },
+      };
+  
+      const textPart = {
+        text: "Analyze this image of a food product's ingredients list. Extract the full list of ingredients and identify any highlighted allergens. Return a single JSON object with two keys: 'ingredients' (an array of strings) and 'allergens' (an array of strings). If a key cannot be found, return an empty array for it.",
+      };
+  
+      const response = await gemini.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: { parts: [imagePart, textPart] },
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              ingredients: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "An array of strings, where each string is a single ingredient from the list.",
+              },
+              allergens: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "An array of strings for any allergens found, typically highlighted in the ingredients list.",
+              },
+            },
+            required: ["ingredients", "allergens"],
+          },
+        },
+      });
+      
+      const jsonString = response.text;
+      return JSON.parse(jsonString);
+  
+    } catch (error) {
+      console.error("Error analyzing ingredients image:", error);
+      if (error instanceof Error) {
+          if (error.message.includes('API key not valid')) {
+              throw new Error('Der gespeicherte API-Schlüssel ist ungültig. Bitte geben Sie einen neuen in den Einstellungen ein.');
+          }
+          throw error;
+      }
+      throw new Error("Zutatenliste konnte nicht mit KI analysiert werden.");
+    }
+  };
