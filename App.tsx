@@ -1,15 +1,18 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { FoodItem } from './types';
 import { FoodItemForm } from './components/FoodItemForm';
 import { FoodItemList } from './components/FoodItemList';
 import { DuplicateConfirmationModal } from './components/DuplicateConfirmationModal';
 import { ImageModal } from './components/ImageModal';
 import { SettingsModal } from './components/SettingsModal';
+import { ApiKeyModal } from './components/ApiKeyModal';
 import { useTranslation } from './i18n';
 import { PlusCircleIcon, SettingsIcon } from './components/Icons';
 
 const App: React.FC = () => {
   const { t } = useTranslation();
+  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem('gemini_api_key'));
+
   const [foodItems, setFoodItems] = useState<FoodItem[]>(() => {
     try {
       const savedItems = localStorage.getItem('foodItems');
@@ -25,22 +28,32 @@ const App: React.FC = () => {
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<FoodItem | null>(null);
 
-  // State for duplicate check flow
   const [potentialDuplicates, setPotentialDuplicates] = useState<FoodItem[]>([]);
   const [itemToAdd, setItemToAdd] = useState<Omit<FoodItem, 'id'> | null>(null);
   
-  // State for image modal
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  
-  // State for settings modal
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  const handleKeySave = useCallback((newKey: string) => {
+    localStorage.setItem('gemini_api_key', newKey);
+    setApiKey(newKey);
+  }, []);
+
+  const handleKeyUpdate = useCallback((newKey: string | null) => {
+    if (newKey) {
+        localStorage.setItem('gemini_api_key', newKey);
+    } else {
+        localStorage.removeItem('gemini_api_key');
+    }
+    setApiKey(newKey);
+}, []);
+
 
   useEffect(() => {
     localStorage.setItem('foodItems', JSON.stringify(foodItems));
   }, [foodItems]);
 
   const handleSaveItem = (itemData: Omit<FoodItem, 'id'>): void => {
-    // If we're editing, we don't need to check for duplicates against itself
     if (editingItem) {
         setFoodItems(prevItems =>
             prevItems.map(item =>
@@ -51,7 +64,6 @@ const App: React.FC = () => {
         return;
     }
 
-    // New item: Check for duplicates
     const duplicates = foodItems.filter(
       existingItem => existingItem.name.trim().toLowerCase() === itemData.name.trim().toLowerCase()
     );
@@ -88,7 +100,6 @@ const App: React.FC = () => {
       setEditingItem(null);
   };
 
-
   const handleDeleteItem = (id: string) => {
     setFoodItems(prevItems => prevItems.filter(item => item.id !== id));
   };
@@ -106,7 +117,6 @@ const App: React.FC = () => {
   const handleCancelDuplicateAdd = () => {
     setItemToAdd(null);
     setPotentialDuplicates([]);
-    // Keep form open for editing
   };
   
   const filteredItems = useMemo(() => {
@@ -126,6 +136,10 @@ const App: React.FC = () => {
   }, [foodItems, searchTerm, filter]);
 
   const isSearching = searchTerm.trim() !== '';
+
+  if (!apiKey) {
+    return <ApiKeyModal onKeySave={handleKeySave} />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 font-sans transition-colors duration-300">
@@ -228,7 +242,7 @@ const App: React.FC = () => {
         <p>{t('footer.text')}</p>
       </footer>
 
-      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
+      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} onKeyUpdate={handleKeyUpdate} />}
 
       {potentialDuplicates.length > 0 && itemToAdd && (
         <DuplicateConfirmationModal

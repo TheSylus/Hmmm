@@ -3,7 +3,12 @@ import { GoogleGenAI } from '@google/genai';
 import { useTranslation } from '../i18n';
 import { SparklesIcon } from './Icons';
 
-export const ApiKeyTester: React.FC = () => {
+interface ApiKeyTesterProps {
+    onKeyVerified: (apiKey: string) => void;
+    buttonText?: string;
+}
+
+export const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ onKeyVerified, buttonText }) => {
     const { t } = useTranslation();
     const [apiKey, setApiKey] = useState('');
     const [status, setStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
@@ -11,31 +16,29 @@ export const ApiKeyTester: React.FC = () => {
     const [isInvalidKeyError, setIsInvalidKeyError] = useState(false);
 
     const handleTestKey = async () => {
-        if (!apiKey.trim()) return;
+        const keyToTest = apiKey.trim();
+        if (!keyToTest) return;
         
         setStatus('testing');
         setErrorMessage(null);
         setIsInvalidKeyError(false);
         
         try {
-            // We create a temporary, isolated client for the test.
-            // This bypasses the main app's getAiClient() and its dependency on process.env.
-            const testAi = new GoogleGenAI({ apiKey });
-            
-            // Perform a simple, low-cost query to validate the key and API access.
+            const testAi = new GoogleGenAI({ apiKey: keyToTest });
             await testAi.models.generateContent({ model: 'gemini-2.5-flash', contents: 'hello' });
             
             setStatus('success');
+            // If successful, call the callback to notify the parent.
+            onKeyVerified(keyToTest);
+
         } catch (e) {
             setStatus('error');
             const message = e instanceof Error ? e.message : 'An unknown error occurred.';
 
-            // Check for the specific invalid key error from Google API
             if (message.includes('API key not valid') || message.includes('API_KEY_INVALID')) {
                 setIsInvalidKeyError(true);
             }
             
-            // Clean up common unhelpful error prefixes
             setErrorMessage(message.replace(/\[\w+\/\w+\]\s*/, ''));
             console.error("API Key Test Failed:", e);
         }
@@ -77,8 +80,6 @@ export const ApiKeyTester: React.FC = () => {
 
     return (
         <div>
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">{t('settings.apiKeyTest.title')}</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{t('settings.apiKeyTest.description')}</p>
             <div className="flex flex-col sm:flex-row gap-2">
                 <input
                     type="password"
@@ -92,7 +93,7 @@ export const ApiKeyTester: React.FC = () => {
                     disabled={status === 'testing' || !apiKey}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 transition-colors disabled:bg-indigo-400 dark:disabled:bg-gray-600"
                 >
-                    {t('settings.apiKeyTest.button')}
+                    {buttonText || t('settings.apiKeyTest.button')}
                 </button>
             </div>
             <div className="mt-2 min-h-[20px]">

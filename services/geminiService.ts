@@ -1,21 +1,23 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { NutriScore } from "../types";
 
-// We will initialize the AI client lazily to prevent the app from crashing on load
-// if the API_KEY environment variable is not available.
-let ai: GoogleGenAI;
+let ai: GoogleGenAI | null = null;
+let currentApiKey: string | null = null;
+
+function getApiKey(): string {
+    const storedApiKey = localStorage.getItem('gemini_api_key');
+    if (!storedApiKey) {
+        throw new Error("API-Schlüssel nicht im lokalen Speicher gefunden. Bitte geben Sie einen Schlüssel ein.");
+    }
+    return storedApiKey;
+}
 
 function getAiClient() {
-    if (!ai) {
-        // Vercel (and other Vite-based platforms) require env variables to be prefixed
-        // with VITE_ to be exposed to the browser. We check for that first.
-        const apiKey = process.env.VITE_API_KEY || process.env.API_KEY;
-
-        if (!apiKey) {
-            // This error will be shown if the API_KEY environment variable is not set.
-            throw new Error("API-Schlüssel nicht konfiguriert. Bitte setzen Sie die `VITE_API_KEY` (für Vercel/Vite) oder `API_KEY` Umgebungsvariable in Ihren Projekteinstellungen und starten Sie einen neuen Deploy.");
-        }
+    const apiKey = getApiKey();
+    // Re-initialize the client only if the key has changed
+    if (!ai || apiKey !== currentApiKey) {
         ai = new GoogleGenAI({ apiKey });
+        currentApiKey = apiKey;
     }
     return ai;
 }
@@ -36,7 +38,7 @@ export const analyzeFoodImage = async (base64Image: string): Promise<{ name: str
   const data = match[2];
 
   try {
-    const gemini = getAiClient(); // Initialize and get the client here
+    const gemini = getAiClient();
 
     const imagePart = {
       inlineData: {
@@ -99,11 +101,13 @@ export const analyzeFoodImage = async (base64Image: string): Promise<{ name: str
 
   } catch (error) {
     console.error("Error analyzing food image:", error);
-    // Re-throw the original error to allow the UI to display specific messages
     if (error instanceof Error) {
+        // Provide a more user-friendly error for invalid keys
+        if (error.message.includes('API key not valid')) {
+            throw new Error('Der gespeicherte API-Schlüssel ist ungültig. Bitte geben Sie einen neuen in den Einstellungen ein.');
+        }
         throw error;
     }
-    // Fallback for non-Error throws
-    throw new Error("Could not analyze image with AI. Please try again or enter details manually.");
+    throw new Error("Bild konnte nicht mit KI analysiert werden. Bitte versuchen Sie es erneut oder geben Sie die Details manuell ein.");
   }
 };

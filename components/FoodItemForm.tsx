@@ -6,7 +6,6 @@ import { ImageCropper } from './ImageCropper';
 import { StarIcon, SparklesIcon, CameraIcon, PlusCircleIcon, XMarkIcon } from './Icons';
 import { useTranslation } from '../i18n';
 import { useAppSettings } from '../contexts/AppSettingsContext';
-import { useAppStatus } from '../contexts/AppStatusContext';
 
 interface FoodItemFormProps {
   onSaveItem: (item: Omit<FoodItem, 'id'>) => void;
@@ -26,7 +25,6 @@ const nutriScoreColors: Record<NutriScore, string> = {
 export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel, initialData }) => {
   const { t } = useTranslation();
   const { isAiEnabled } = useAppSettings();
-  const { isApiKeyConfigured } = useAppStatus();
   
   const isEditing = !!initialData;
 
@@ -79,16 +77,6 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
     setError(null);
     
     if (isAiEnabled) {
-      // Pre-flight check: Ensure the API key is actually configured in the environment
-      if (!isApiKeyConfigured) {
-        setError(t('form.error.apiKeyNotConfigured'));
-        // Fallback to manual mode: just open the cropper without AI data
-        setUncroppedImage(imageDataUrl);
-        setSuggestedCrop(null);
-        setIsCropperOpen(true);
-        return; // Stop here, don't attempt to call the AI service
-      }
-
       setIsLoading(true);
       try {
         const result = await analyzeFoodImage(imageDataUrl);
@@ -101,8 +89,9 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
         setIsCropperOpen(true);
       } catch (e) {
         console.error(e);
-        setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-        // Fallback: if AI fails, still open cropper without AI data
+        const errorMessage = e instanceof Error ? e.message : t('form.error.genericAiError');
+        setError(errorMessage);
+        // Fallback: if AI fails, still open cropper without AI data but show the error
         setUncroppedImage(imageDataUrl);
         setSuggestedCrop(null);
         setIsCropperOpen(true);
@@ -159,9 +148,6 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
       nutriScore: nutriScore || undefined,
       tags: tags ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : undefined,
     });
-    
-    // The parent component now controls when/if the form is closed and reset.
-    // This allows the duplicate check modal to appear without the form closing.
   };
 
   const removeImage = () => {
@@ -285,7 +271,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
             </div>
         </div>
         
-        {error && <p className="text-red-500 dark:text-red-400 bg-red-100 dark:bg-red-900/50 p-3 rounded-md text-sm">{error}</p>}
+        {error && <p className="text-red-500 dark:text-red-400 bg-red-100 dark:bg-red-900/50 p-3 rounded-md text-sm mt-4">{error}</p>}
         
         <div className="flex flex-col sm:flex-row gap-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
             <button

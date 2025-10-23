@@ -1,7 +1,5 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 
-// By inlining the translations, we avoid any module resolution issues
-// with JSON files that might occur in certain deployment environments.
 const enTranslations = {
   "header.title": "Food Memory Tracker",
   "header.searchPlaceholder": "Search items...",
@@ -20,7 +18,7 @@ const enTranslations = {
   "form.label.nutriScore": "Nutri-Score:",
   "form.aria.selectNutriScore": "Select Nutri-Score {score}",
   "form.error.nameAndRating": "Please provide a name and a rating.",
-  "form.error.apiKeyNotConfigured": "AI features cannot be used because the API key is not configured in the project settings. Please set the 'API_KEY' environment variable in your deployment settings and refresh the page.",
+  "form.error.genericAiError": "Could not analyze image with AI. Please try again or enter details manually.",
   "form.button.cancel": "Cancel",
   "form.button.save": "Save Item",
   "form.button.update": "Update Item",
@@ -53,30 +51,31 @@ const enTranslations = {
   "settings.theme.dark": "Dark",
   "settings.theme.system": "System",
   "settings.language.title": "Language",
-  "settings.apiStatus.title": "API Configuration",
-  "settings.apiStatus.configured": "API key successfully found and loaded.",
-  "settings.apiStatus.notConfigured": "API key not found in project settings.",
+  "settings.apiManagement.title": "API Key Management",
+  "settings.apiManagement.description": "The API key is stored securely in your browser's local storage and is never sent anywhere except to the Google AI API.",
+  "settings.apiManagement.currentKey": "Current Key:",
+  "settings.apiManagement.noKey": "No API key is currently saved.",
+  "settings.apiManagement.changeButton": "Change Key",
+  "settings.apiManagement.removeButton": "Remove Key",
   "settings.ai.title": "AI Features",
   "settings.ai.description": "Enable AI analysis to auto-fill details from photos.",
   "settings.apiKeyTest.title": "API Key Tester",
-  "settings.apiKeyTest.description": "If you're having issues, you can test your API key directly here. This does not save the key.",
+  "settings.apiKeyTest.description": "Test a new key before saving it.",
   "settings.apiKeyTest.placeholder": "Paste your API key here",
   "settings.apiKeyTest.button": "Test Key",
   "settings.apiKeyTest.status.testing": "Testing...",
-  "settings.apiKeyTest.status.success": "Success! Your API key is working correctly.",
+  "settings.apiKeyTest.status.success": "Success! This key is working correctly.",
   "settings.apiKeyTest.status.error.generic": "Error: {message}",
   "settings.apiKeyTest.status.error.invalidKey.start": "Error: This API key is invalid. Please double-check it or ",
   "settings.apiKeyTest.status.error.invalidKey.linkText": "create a new one in Google AI Studio",
   "settings.apiKeyTest.status.error.invalidKey.end": ".",
   "settings.button.done": "Done",
-  "settings.troubleshooting.title": "Troubleshooting Guide",
-  "settings.troubleshooting.explanation": "Your key is valid (confirmed by the tester), but the app can't access it. This is a common issue with hosting platforms like Vercel.",
-  "settings.troubleshooting.solution": "To fix this, you must add it as an Environment Variable in your Vercel project settings:",
-  "settings.troubleshooting.step1": "Go to your Vercel project settings under 'Environment Variables'.",
-  "settings.troubleshooting.step2": "Create a new variable with the exact name:",
-  "settings.troubleshooting.step3": "Paste your API key as the value.",
-  "settings.troubleshooting.step4": "Important: Redeploy your project for the change to take effect.",
-  "settings.troubleshooting.vercelLink": "Open Vercel Dashboard"
+  "apiKeyModal.title": "Welcome to Food Memory Tracker",
+  "apiKeyModal.description": "To enable AI features like automatic product recognition, please enter your Google Gemini API key.",
+  "apiKeyModal.inputPlaceholder": "Enter your Google Gemini API key",
+  "apiKeyModal.button.testAndSave": "Test & Save Key",
+  "apiKeyModal.link.whereToGet": "Where do I get a key?",
+  "apiKeyModal.manualEntry": "I'll enter data manually for now (you can add a key later in settings)."
 };
 
 const deTranslations = {
@@ -97,7 +96,7 @@ const deTranslations = {
   "form.label.nutriScore": "Nutri-Score:",
   "form.aria.selectNutriScore": "Nutri-Score {score} auswählen",
   "form.error.nameAndRating": "Bitte gib einen Namen und eine Bewertung an.",
-  "form.error.apiKeyNotConfigured": "KI-Funktionen können nicht verwendet werden, da der API-Schlüssel nicht in den Projekteinstellungen konfiguriert ist. Bitte setzen Sie die 'API_KEY'-Umgebungsvariable in Ihren Deployment-Einstellungen und laden Sie die Seite neu.",
+  "form.error.genericAiError": "Bild konnte nicht mit KI analysiert werden. Bitte versuchen Sie es erneut oder geben Sie die Details manuell ein.",
   "form.button.cancel": "Abbrechen",
   "form.button.save": "Produkt speichern",
   "form.button.update": "Produkt aktualisieren",
@@ -130,30 +129,31 @@ const deTranslations = {
   "settings.theme.dark": "Dunkel",
   "settings.theme.system": "System",
   "settings.language.title": "Sprache",
-  "settings.apiStatus.title": "API-Konfiguration",
-  "settings.apiStatus.configured": "API-Schlüssel erfolgreich gefunden und geladen.",
-  "settings.apiStatus.notConfigured": "API-Schlüssel in den Projekteinstellungen nicht gefunden.",
+  "settings.apiManagement.title": "API-Schlüssel-Verwaltung",
+  "settings.apiManagement.description": "Der API-Schlüssel wird sicher im lokalen Speicher Ihres Browsers gespeichert und nirgendwo anders als an die Google AI API gesendet.",
+  "settings.apiManagement.currentKey": "Aktueller Schlüssel:",
+  "settings.apiManagement.noKey": "Derzeit ist kein API-Schlüssel gespeichert.",
+  "settings.apiManagement.changeButton": "Schlüssel ändern",
+  "settings.apiManagement.removeButton": "Schlüssel entfernen",
   "settings.ai.title": "KI-Funktionen",
   "settings.ai.description": "Aktiviere die KI-Analyse, um Details automatisch aus Fotos auszufüllen.",
   "settings.apiKeyTest.title": "API-Schlüssel-Tester",
-  "settings.apiKeyTest.description": "Wenn Sie Probleme haben, können Sie Ihren API-Schlüssel hier direkt testen. Der Schlüssel wird nicht gespeichert.",
+  "settings.apiKeyTest.description": "Testen Sie einen neuen Schlüssel, bevor Sie ihn speichern.",
   "settings.apiKeyTest.placeholder": "Fügen Sie Ihren API-Schlüssel hier ein",
   "settings.apiKeyTest.button": "Schlüssel testen",
   "settings.apiKeyTest.status.testing": "Wird getestet...",
-  "settings.apiKeyTest.status.success": "Erfolg! Ihr API-Schlüssel funktioniert korrekt.",
+  "settings.apiKeyTest.status.success": "Erfolg! Dieser Schlüssel funktioniert korrekt.",
   "settings.apiKeyTest.status.error.generic": "Fehler: {message}",
   "settings.apiKeyTest.status.error.invalidKey.start": "Fehler: Dieser API-Schlüssel ist ungültig. Bitte überprüfen Sie ihn oder ",
   "settings.apiKeyTest.status.error.invalidKey.linkText": "erstellen Sie einen neuen im Google AI Studio",
   "settings.apiKeyTest.status.error.invalidKey.end": ".",
   "settings.button.done": "Fertig",
-  "settings.troubleshooting.title": "Anleitung zur Fehlerbehebung",
-  "settings.troubleshooting.explanation": "Ihr Schlüssel ist gültig (vom Tester bestätigt), aber die App kann ihn nicht finden. Das ist ein häufiges Problem bei Hosting-Plattformen wie Vercel.",
-  "settings.troubleshooting.solution": "Um das zu beheben, müssen Sie ihn als Umgebungsvariable (Environment Variable) in Ihren Vercel-Projekteinstellungen hinzufügen:",
-  "settings.troubleshooting.step1": "Gehen Sie zu Ihren Vercel-Projekteinstellungen unter 'Environment Variables'.",
-  "settings.troubleshooting.step2": "Erstellen Sie eine neue Variable mit dem exakten Namen:",
-  "settings.troubleshooting.step3": "Fügen Sie Ihren API-Schlüssel als Wert ein.",
-  "settings.troubleshooting.step4": "Wichtig: Veröffentlichen Sie Ihr Projekt erneut (Redeploy), damit die Änderung wirksam wird.",
-  "settings.troubleshooting.vercelLink": "Vercel Dashboard öffnen"
+  "apiKeyModal.title": "Willkommen beim Lebensmittel-Tracker",
+  "apiKeyModal.description": "Um KI-Funktionen wie die automatische Produkterkennung zu aktivieren, geben Sie bitte Ihren Google Gemini API-Schlüssel ein.",
+  "apiKeyModal.inputPlaceholder": "Geben Sie Ihren Google Gemini API-Schlüssel ein",
+  "apiKeyModal.button.testAndSave": "Schlüssel testen & speichern",
+  "apiKeyModal.link.whereToGet": "Wo bekomme ich einen Schlüssel?",
+  "apiKeyModal.manualEntry": "Ich gebe die Daten vorerst manuell ein (Sie können später einen Schlüssel in den Einstellungen hinzufügen)."
 };
 
 // Type for the translation function
@@ -166,25 +166,21 @@ interface I18nContextType {
   language: 'en' | 'de';
 }
 
-// Create the context with a default value
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
-// Supported languages and their corresponding translation data
 const translationsData: Record<'en' | 'de', Record<string, string>> = {
   en: enTranslations,
   de: deTranslations,
 };
 
-// Function to get the browser's preferred language
 const getInitialLocale = (): 'en' | 'de' => {
   const browserLang = navigator.language.split('-')[0];
   if (browserLang in translationsData) {
     return browserLang as 'en' | 'de';
   }
-  return 'en'; // Default to English
+  return 'en';
 };
 
-// Provider component
 export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [language, setLanguage] = useState<'en' | 'de'>(() => {
     const savedLang = localStorage.getItem('language');
@@ -194,8 +190,6 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return getInitialLocale();
   });
 
-
-  // The translation function
   const t: TFunction = (key, options) => {
     const translationSet = translationsData[language];
     let translation = translationSet[key] || key;
@@ -207,25 +201,20 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return translation;
   };
   
-  // Wrapper for setLanguage to also save to localStorage
   const handleSetLanguage = (lang: 'en' | 'de') => {
       setLanguage(lang);
       localStorage.setItem('language', lang);
   }
 
-  // Set the lang attribute on the html tag for accessibility
   useEffect(() => {
       document.documentElement.lang = language;
   }, [language]);
 
   const value = { t, setLanguage: handleSetLanguage, language };
 
-  // FIX: Replaced JSX with `React.createElement` calls to fix parsing errors in a .ts file.
-  // Translations are now bundled, so we don't need a loading state.
   return React.createElement(I18nContext.Provider, { value }, children);
 };
 
-// Custom hook to use the translation context
 export const useTranslation = (): I18nContextType => {
   const context = useContext(I18nContext);
   if (context === undefined) {
