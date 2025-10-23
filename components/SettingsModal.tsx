@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from '../i18n';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
+import { useAppStatus } from '../contexts/AppStatusContext';
 import { XMarkIcon } from './Icons';
 import { ApiKeyTester } from './ApiKeyTester';
 
@@ -9,10 +10,24 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+const CheckCircleIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+    </svg>
+);
+
+const XCircleIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+    </svg>
+);
+
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const { t, language, setLanguage } = useTranslation();
   const { theme, setTheme } = useTheme();
   const { isAiEnabled, setIsAiEnabled } = useAppSettings();
+  const { isApiKeyConfigured } = useAppStatus();
 
   return (
     <div
@@ -38,6 +53,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         </div>
         
         <div className="space-y-6">
+            {/* API Status */}
+            <div>
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">{t('settings.apiStatus.title')}</h3>
+                <div className={`flex items-start gap-3 p-3 rounded-lg ${isApiKeyConfigured ? 'bg-green-100 dark:bg-green-900/50' : 'bg-red-100 dark:bg-red-900/50'}`}>
+                    {isApiKeyConfigured ? (
+                        <CheckCircleIcon className="w-6 h-6 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                    ) : (
+                        <XCircleIcon className="w-6 h-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                    )}
+                    <p className={`text-sm ${isApiKeyConfigured ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'}`}>
+                        {t(isApiKeyConfigured ? 'settings.apiStatus.configured' : 'settings.apiStatus.notConfigured')}
+                    </p>
+                </div>
+            </div>
+
+            {/* AI Feature Toggle */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">{t('settings.ai.title')}</h3>
+              <label htmlFor="ai-toggle" className="flex items-center justify-between bg-gray-100 dark:bg-gray-900/50 p-3 rounded-lg cursor-pointer">
+                <span className="text-sm text-gray-600 dark:text-gray-400 max-w-[75%] pr-2">{t('settings.ai.description')}</span>
+                <div className="relative">
+                  <input
+                    id="ai-toggle"
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={isAiEnabled}
+                    onChange={() => setIsAiEnabled(!isAiEnabled)}
+                  />
+                  <div className="w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-indigo-600"></div>
+                </div>
+              </label>
+            </div>
+            
+            <hr className="border-gray-200 dark:border-gray-700" />
+            
+            {/* API Key Tester */}
+            <ApiKeyTester />
+            
+            <hr className="border-gray-200 dark:border-gray-700" />
+
             {/* Theme Selection */}
             <div>
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">{t('settings.theme.title')}</h3>
@@ -66,29 +121,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                     </button>
                 </div>
             </div>
-
-            {/* AI Feature Toggle */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">{t('settings.ai.title')}</h3>
-              <label htmlFor="ai-toggle" className="flex items-center justify-between bg-gray-100 dark:bg-gray-900/50 p-3 rounded-lg cursor-pointer">
-                <span className="text-sm text-gray-600 dark:text-gray-400 max-w-[75%] pr-2">{t('settings.ai.description')}</span>
-                <div className="relative">
-                  <input
-                    id="ai-toggle"
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={isAiEnabled}
-                    onChange={() => setIsAiEnabled(!isAiEnabled)}
-                  />
-                  <div className="w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-indigo-600"></div>
-                </div>
-              </label>
-            </div>
-            
-            <hr className="border-gray-200 dark:border-gray-700" />
-            
-            {/* API Key Tester */}
-            <ApiKeyTester />
 
         </div>
 

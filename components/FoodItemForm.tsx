@@ -6,6 +6,7 @@ import { ImageCropper } from './ImageCropper';
 import { StarIcon, SparklesIcon, CameraIcon, PlusCircleIcon, XMarkIcon } from './Icons';
 import { useTranslation } from '../i18n';
 import { useAppSettings } from '../contexts/AppSettingsContext';
+import { useAppStatus } from '../contexts/AppStatusContext';
 
 interface FoodItemFormProps {
   onSaveItem: (item: Omit<FoodItem, 'id'>) => void;
@@ -25,6 +26,7 @@ const nutriScoreColors: Record<NutriScore, string> = {
 export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel, initialData }) => {
   const { t } = useTranslation();
   const { isAiEnabled } = useAppSettings();
+  const { isApiKeyConfigured } = useAppStatus();
   
   const isEditing = !!initialData;
 
@@ -77,6 +79,16 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
     setError(null);
     
     if (isAiEnabled) {
+      // Pre-flight check: Ensure the API key is actually configured in the environment
+      if (!isApiKeyConfigured) {
+        setError(t('form.error.apiKeyNotConfigured'));
+        // Fallback to manual mode: just open the cropper without AI data
+        setUncroppedImage(imageDataUrl);
+        setSuggestedCrop(null);
+        setIsCropperOpen(true);
+        return; // Stop here, don't attempt to call the AI service
+      }
+
       setIsLoading(true);
       try {
         const result = await analyzeFoodImage(imageDataUrl);
