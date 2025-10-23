@@ -2,21 +2,19 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { NutriScore } from "../types";
 
 // We will initialize the AI client lazily to prevent the app from crashing on load
-// if the API_KEY environment variable is not available in the deployment environment.
+// if the API_KEY environment variable is not available.
 let ai: GoogleGenAI;
 
 function getAiClient() {
     if (!ai) {
-        // For client-side code, environment variables need to be exposed by the build tool,
-        // often requiring a specific prefix. Vercel deployments commonly use Vite, which uses the `VITE_` prefix.
-        // We check for the prefixed variable first, then fall back to others for broader compatibility.
-        const apiKey = process.env.VITE_API_KEY || process.env.REACT_APP_API_KEY || process.env.API_KEY;
+        // The API key is expected to be available as process.env.API_KEY.
+        const apiKey = process.env.API_KEY;
 
         if (!apiKey) {
-            // Provide a more specific error message to help with deployment.
-            throw new Error("API key not configured. Please ensure an environment variable is set in your deployment settings. For Vercel/Vite, it must be prefixed with 'VITE_' (e.g., VITE_API_KEY) to be accessible in the browser.");
+            // This error will be shown if the API_KEY environment variable is not set.
+            throw new Error("API key not configured. Please ensure the API_KEY environment variable is set.");
         }
-        ai = new GoogleGenAI({ apiKey: apiKey });
+        ai = new GoogleGenAI({ apiKey });
     }
     return ai;
 }
