@@ -54,6 +54,13 @@ const enTranslations = {
   "settings.language.title": "Language",
   "settings.ai.title": "AI Features",
   "settings.ai.description": "Enable AI analysis to auto-fill details from photos.",
+  "settings.apiKeyTest.title": "API Key Tester",
+  "settings.apiKeyTest.description": "If you're having issues, you can test your API key directly here. This does not save the key.",
+  "settings.apiKeyTest.placeholder": "Paste your API key here",
+  "settings.apiKeyTest.button": "Test Key",
+  "settings.apiKeyTest.status.testing": "Testing...",
+  "settings.apiKeyTest.status.success": "Success! Your API key is working correctly.",
+  "settings.apiKeyTest.status.error": "Error: {message}",
   "settings.button.done": "Done"
 };
 
@@ -109,6 +116,13 @@ const deTranslations = {
   "settings.language.title": "Sprache",
   "settings.ai.title": "KI-Funktionen",
   "settings.ai.description": "Aktiviere die KI-Analyse, um Details automatisch aus Fotos auszufüllen.",
+  "settings.apiKeyTest.title": "API-Schlüssel-Tester",
+  "settings.apiKeyTest.description": "Wenn Sie Probleme haben, können Sie Ihren API-Schlüssel hier direkt testen. Der Schlüssel wird nicht gespeichert.",
+  "settings.apiKeyTest.placeholder": "Fügen Sie Ihren API-Schlüssel hier ein",
+  "settings.apiKeyTest.button": "Schlüssel testen",
+  "settings.apiKeyTest.status.testing": "Wird getestet...",
+  "settings.apiKeyTest.status.success": "Erfolg! Ihr API-Schlüssel funktioniert korrekt.",
+  "settings.apiKeyTest.status.error": "Fehler: {message}",
   "settings.button.done": "Fertig"
 };
 

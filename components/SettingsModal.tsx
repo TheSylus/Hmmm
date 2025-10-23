@@ -3,6 +3,7 @@ import { useTranslation } from '../i18n';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
 import { XMarkIcon } from './Icons';
+import { ApiKeyTester } from './ApiKeyTester';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -83,6 +84,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 </div>
               </label>
             </div>
+            
+            <hr className="border-gray-200 dark:border-gray-700" />
+            
+            {/* API Key Tester */}
+            <ApiKeyTester />
+
         </div>
 
         <div className="mt-8 text-center">

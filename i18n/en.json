@@ -50,5 +50,12 @@
   "settings.language.title": "Language",
   "settings.ai.title": "AI Features",
   "settings.ai.description": "Enable AI analysis to auto-fill details from photos.",
+  "settings.apiKeyTest.title": "API Key Tester",
+  "settings.apiKeyTest.description": "If you're having issues, you can test your API key directly here. This does not save the key.",
+  "settings.apiKeyTest.placeholder": "Paste your API key here",
+  "settings.apiKeyTest.button": "Test Key",
+  "settings.apiKeyTest.status.testing": "Testing...",
+  "settings.apiKeyTest.status.success": "Success! Your API key is working correctly.",
+  "settings.apiKeyTest.status.error": "Error: {message}",
   "settings.button.done": "Done"
 }

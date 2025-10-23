@@ -12,7 +12,7 @@ function getAiClient() {
 
         if (!apiKey) {
             // This error will be shown if the API_KEY environment variable is not set.
-            throw new Error("API-Schlüssel nicht konfiguriert. Bitte stellen Sie sicher, dass die Umgebungsvariable 'API_KEY' in Ihren Projekteinstellungen (z.B. bei Vercel) gesetzt ist.");
+            throw new Error("API-Schlüssel nicht konfiguriert. Bitte stellen Sie sicher, dass die Umgebungsvariable 'API_KEY' in Ihren Projekteinstellungen (z.B. bei Vercel) gesetzt ist. Sie können die Funktionalität Ihres Schlüssels auch im Einstellungsmenü der App testen.");
         }
         ai = new GoogleGenAI({ apiKey });
     }

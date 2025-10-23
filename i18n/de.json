@@ -50,5 +50,12 @@
   "settings.language.title": "Sprache",
   "settings.ai.title": "KI-Funktionen",
   "settings.ai.description": "Aktiviere die KI-Analyse, um Details automatisch aus Fotos auszufüllen.",
+  "settings.apiKeyTest.title": "API-Schlüssel-Tester",
+  "settings.apiKeyTest.description": "Wenn Sie Probleme haben, können Sie Ihren API-Schlüssel hier direkt testen. Der Schlüssel wird nicht gespeichert.",
+  "settings.apiKeyTest.placeholder": "Fügen Sie Ihren API-Schlüssel hier ein",
+  "settings.apiKeyTest.button": "Schlüssel testen",
+  "settings.apiKeyTest.status.testing": "Wird getestet...",
+  "settings.apiKeyTest.status.success": "Erfolg! Ihr API-Schlüssel funktioniert korrekt.",
+  "settings.apiKeyTest.status.error": "Fehler: {message}",
   "settings.button.done": "Fertig"
 }
