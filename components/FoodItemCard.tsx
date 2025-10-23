@@ -1,6 +1,6 @@
 import React from 'react';
 import { FoodItem, NutriScore } from '../types';
-import { StarIcon, TrashIcon, PencilIcon, AlertTriangleIcon } from './Icons';
+import { StarIcon, TrashIcon, PencilIcon } from './Icons';
 import { useTranslation } from '../i18n';
 import { useTranslatedItem } from '../hooks/useTranslatedItem';
 import { AllergenDisplay } from './AllergenDisplay';
@@ -51,11 +51,17 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
                     {[1, 2, 3, 4, 5].map(star => (
                         <StarIcon key={star} className={`w-5 h-5 ${displayItem.rating >= star ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`} filled={displayItem.rating >= star} />
                     ))}
-                    {displayItem.nutriScore && (
-                        <div className={`ml-3 text-xs w-6 h-6 rounded-full text-white font-bold flex items-center justify-center flex-shrink-0 ${nutriScoreColors[displayItem.nutriScore]}`}>
-                        {displayItem.nutriScore}
-                        </div>
-                    )}
+                    
+                    <div className="ml-3 flex items-center gap-2">
+                        {displayItem.nutriScore && (
+                            <div className={`text-xs w-6 h-6 rounded-full text-white font-bold flex items-center justify-center flex-shrink-0 ${nutriScoreColors[displayItem.nutriScore]}`}>
+                            {displayItem.nutriScore}
+                            </div>
+                        )}
+                        {displayItem.allergens && displayItem.allergens.length > 0 && (
+                            <AllergenDisplay allergens={displayItem.allergens} />
+                        )}
+                    </div>
                 </div>
 
                 {displayItem.notes && (
@@ -75,17 +81,6 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
                 )}
             </div>
         </div>
-
-        {/* Allergens Section */}
-        {displayItem.allergens && displayItem.allergens.length > 0 && (
-            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700/50">
-                <div className="flex items-center gap-2 mb-1">
-                    <AlertTriangleIcon className="w-4 h-4 text-red-500 dark:text-red-400 flex-shrink-0" />
-                    <h4 className="text-sm font-semibold text-red-600 dark:text-red-400">{t('card.allergensTitle')}:</h4>
-                </div>
-                <AllergenDisplay allergens={displayItem.allergens} />
-            </div>
-        )}
 
       {/* Action Buttons */}
       <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
