@@ -7,13 +7,14 @@ let ai: GoogleGenAI;
 
 function getAiClient() {
     if (!ai) {
-        // In many build systems (like Create React App), client-side environment variables
-        // must be prefixed (e.g., REACT_APP_). We'll check for that as a fallback.
-        // This makes the app more robust across different deployment setups.
-        const apiKey = process.env.API_KEY || process.env.REACT_APP_API_KEY;
+        // For client-side code, environment variables need to be exposed by the build tool,
+        // often requiring a specific prefix. Vercel deployments commonly use Vite, which uses the `VITE_` prefix.
+        // We check for the prefixed variable first, then fall back to others for broader compatibility.
+        const apiKey = process.env.VITE_API_KEY || process.env.REACT_APP_API_KEY || process.env.API_KEY;
 
         if (!apiKey) {
-            throw new Error("API key not configured. Please ensure an environment variable named API_KEY or REACT_APP_API_KEY is set in your deployment settings.");
+            // Provide a more specific error message to help with deployment.
+            throw new Error("API key not configured. Please ensure an environment variable is set in your deployment settings. For Vercel/Vite, it must be prefixed with 'VITE_' (e.g., VITE_API_KEY) to be accessible in the browser.");
         }
         ai = new GoogleGenAI({ apiKey: apiKey });
     }
@@ -99,7 +100,7 @@ export const analyzeFoodImage = async (base64Image: string): Promise<{ name: str
 
   } catch (error) {
     console.error("Error analyzing food image:", error);
-    // Re-throw the original error to allow the UI to display specific messages (like missing API key)
+    // Re-throw the original error to allow the UI to display specific messages
     if (error instanceof Error) {
         throw error;
     }
