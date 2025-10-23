@@ -48,5 +48,7 @@
   "settings.theme.dark": "Dark",
   "settings.theme.system": "System",
   "settings.language.title": "Language",
+  "settings.ai.title": "AI Features",
+  "settings.ai.description": "Enable AI analysis to auto-fill details from photos.",
   "settings.button.done": "Done"
 }

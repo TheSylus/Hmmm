@@ -5,6 +5,7 @@ import { CameraCapture } from './CameraCapture';
 import { ImageCropper } from './ImageCropper';
 import { StarIcon, SparklesIcon, CameraIcon, PlusCircleIcon, XMarkIcon } from './Icons';
 import { useTranslation } from '../i18n';
+import { useAppSettings } from '../contexts/AppSettingsContext';
 
 interface FoodItemFormProps {
   onSaveItem: (item: Omit<FoodItem, 'id'>) => void;
@@ -23,6 +24,7 @@ const nutriScoreColors: Record<NutriScore, string> = {
 
 export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel, initialData }) => {
   const { t } = useTranslation();
+  const { isAiEnabled } = useAppSettings();
   
   const isEditing = !!initialData;
 
@@ -73,25 +75,33 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   const handleImageFromCamera = async (imageDataUrl: string) => {
     setIsCameraOpen(false);
     setError(null);
-    setIsLoading(true);
-    try {
-      const result = await analyzeFoodImage(imageDataUrl);
-      setName(result.name || '');
-      setTags(result.tags?.join(', ') || '');
-      setNutriScore(result.nutriScore || '');
-      
+    
+    if (isAiEnabled) {
+      setIsLoading(true);
+      try {
+        const result = await analyzeFoodImage(imageDataUrl);
+        setName(result.name || '');
+        setTags(result.tags?.join(', ') || '');
+        setNutriScore(result.nutriScore || '');
+        
+        setUncroppedImage(imageDataUrl);
+        setSuggestedCrop(result.boundingBox);
+        setIsCropperOpen(true);
+      } catch (e) {
+        console.error(e);
+        setError(e instanceof Error ? e.message : 'An unknown error occurred.');
+        // Fallback: if AI fails, still open cropper without AI data
+        setUncroppedImage(imageDataUrl);
+        setSuggestedCrop(null);
+        setIsCropperOpen(true);
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // AI is disabled, just open the cropper
       setUncroppedImage(imageDataUrl);
-      setSuggestedCrop(result.boundingBox);
+      setSuggestedCrop(null); // No AI suggestion
       setIsCropperOpen(true);
-
-    } catch (e) {
-      console.error(e);
-      setError(e instanceof Error ? e.message : 'An unknown error occurred.');
-      setUncroppedImage(imageDataUrl); // Still allow user to use the photo and fill details manually
-      setSuggestedCrop(null);
-      setIsCropperOpen(true);
-    } finally {
-      setIsLoading(false);
     }
   };
 

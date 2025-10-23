@@ -7,10 +7,15 @@ let ai: GoogleGenAI;
 
 function getAiClient() {
     if (!ai) {
-        if (!process.env.API_KEY) {
-            throw new Error("API key not configured. Please ensure the API_KEY environment variable is set in your deployment settings.");
+        // In many build systems (like Create React App), client-side environment variables
+        // must be prefixed (e.g., REACT_APP_). We'll check for that as a fallback.
+        // This makes the app more robust across different deployment setups.
+        const apiKey = process.env.API_KEY || process.env.REACT_APP_API_KEY;
+
+        if (!apiKey) {
+            throw new Error("API key not configured. Please ensure an environment variable named API_KEY or REACT_APP_API_KEY is set in your deployment settings.");
         }
-        ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        ai = new GoogleGenAI({ apiKey: apiKey });
     }
     return ai;
 }

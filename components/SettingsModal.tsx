@@ -1,7 +1,8 @@
 import React from 'react';
 import { useTranslation } from '../i18n';
 import { useTheme } from '../contexts/ThemeContext';
-import { XMarkIcon, SunIcon, MoonIcon } from './Icons';
+import { useAppSettings } from '../contexts/AppSettingsContext';
+import { XMarkIcon } from './Icons';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -10,6 +11,7 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const { t, language, setLanguage } = useTranslation();
   const { theme, setTheme } = useTheme();
+  const { isAiEnabled, setIsAiEnabled } = useAppSettings();
 
   return (
     <div
@@ -62,6 +64,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                         Deutsch
                     </button>
                 </div>
+            </div>
+
+            {/* AI Feature Toggle */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">{t('settings.ai.title')}</h3>
+              <label htmlFor="ai-toggle" className="flex items-center justify-between bg-gray-100 dark:bg-gray-900/50 p-3 rounded-lg cursor-pointer">
+                <span className="text-sm text-gray-600 dark:text-gray-400 max-w-[75%] pr-2">{t('settings.ai.description')}</span>
+                <div className="relative">
+                  <input
+                    id="ai-toggle"
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={isAiEnabled}
+                    onChange={() => setIsAiEnabled(!isAiEnabled)}
+                  />
+                  <div className="w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-indigo-600"></div>
+                </div>
+              </label>
             </div>
         </div>
 

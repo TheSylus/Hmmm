@@ -52,6 +52,8 @@ const enTranslations = {
   "settings.theme.dark": "Dark",
   "settings.theme.system": "System",
   "settings.language.title": "Language",
+  "settings.ai.title": "AI Features",
+  "settings.ai.description": "Enable AI analysis to auto-fill details from photos.",
   "settings.button.done": "Done"
 };
 
@@ -105,6 +107,8 @@ const deTranslations = {
   "settings.theme.dark": "Dunkel",
   "settings.theme.system": "System",
   "settings.language.title": "Sprache",
+  "settings.ai.title": "KI-Funktionen",
+  "settings.ai.description": "Aktiviere die KI-Analyse, um Details automatisch aus Fotos auszufüllen.",
   "settings.button.done": "Fertig"
 };
 
