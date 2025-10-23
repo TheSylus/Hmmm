@@ -53,9 +53,9 @@ const enTranslations = {
   "settings.theme.dark": "Dark",
   "settings.theme.system": "System",
   "settings.language.title": "Language",
-  "settings.apiStatus.title": "API Status",
-  "settings.apiStatus.configured": "API key found in environment.",
-  "settings.apiStatus.notConfigured": "API key not found. Please set the `API_KEY` environment variable in your project settings (e.g., Vercel).",
+  "settings.apiStatus.title": "API Configuration",
+  "settings.apiStatus.configured": "API key successfully found and loaded.",
+  "settings.apiStatus.notConfigured": "API key not found in project settings.",
   "settings.ai.title": "AI Features",
   "settings.ai.description": "Enable AI analysis to auto-fill details from photos.",
   "settings.apiKeyTest.title": "API Key Tester",
@@ -68,7 +68,15 @@ const enTranslations = {
   "settings.apiKeyTest.status.error.invalidKey.start": "Error: This API key is invalid. Please double-check it or ",
   "settings.apiKeyTest.status.error.invalidKey.linkText": "create a new one in Google AI Studio",
   "settings.apiKeyTest.status.error.invalidKey.end": ".",
-  "settings.button.done": "Done"
+  "settings.button.done": "Done",
+  "settings.troubleshooting.title": "Troubleshooting Guide",
+  "settings.troubleshooting.explanation": "Your key is valid (confirmed by the tester), but the app can't access it. This is a common issue with hosting platforms like Vercel.",
+  "settings.troubleshooting.solution": "To fix this, you must add it as an Environment Variable in your Vercel project settings:",
+  "settings.troubleshooting.step1": "Go to your Vercel project settings under 'Environment Variables'.",
+  "settings.troubleshooting.step2": "Create a new variable with the exact name:",
+  "settings.troubleshooting.step3": "Paste your API key as the value.",
+  "settings.troubleshooting.step4": "Important: Redeploy your project for the change to take effect.",
+  "settings.troubleshooting.vercelLink": "Open Vercel Dashboard"
 };
 
 const deTranslations = {
@@ -122,9 +130,9 @@ const deTranslations = {
   "settings.theme.dark": "Dunkel",
   "settings.theme.system": "System",
   "settings.language.title": "Sprache",
-  "settings.apiStatus.title": "API-Status",
-  "settings.apiStatus.configured": "API-Schlüssel in der Umgebung gefunden.",
-  "settings.apiStatus.notConfigured": "API-Schlüssel nicht gefunden. Bitte setzen Sie die `API_KEY` Umgebungsvariable in Ihren Projekteinstellungen (z.B. Vercel).",
+  "settings.apiStatus.title": "API-Konfiguration",
+  "settings.apiStatus.configured": "API-Schlüssel erfolgreich gefunden und geladen.",
+  "settings.apiStatus.notConfigured": "API-Schlüssel in den Projekteinstellungen nicht gefunden.",
   "settings.ai.title": "KI-Funktionen",
   "settings.ai.description": "Aktiviere die KI-Analyse, um Details automatisch aus Fotos auszufüllen.",
   "settings.apiKeyTest.title": "API-Schlüssel-Tester",
@@ -137,7 +145,15 @@ const deTranslations = {
   "settings.apiKeyTest.status.error.invalidKey.start": "Fehler: Dieser API-Schlüssel ist ungültig. Bitte überprüfen Sie ihn oder ",
   "settings.apiKeyTest.status.error.invalidKey.linkText": "erstellen Sie einen neuen im Google AI Studio",
   "settings.apiKeyTest.status.error.invalidKey.end": ".",
-  "settings.button.done": "Fertig"
+  "settings.button.done": "Fertig",
+  "settings.troubleshooting.title": "Anleitung zur Fehlerbehebung",
+  "settings.troubleshooting.explanation": "Ihr Schlüssel ist gültig (vom Tester bestätigt), aber die App kann ihn nicht finden. Das ist ein häufiges Problem bei Hosting-Plattformen wie Vercel.",
+  "settings.troubleshooting.solution": "Um das zu beheben, müssen Sie ihn als Umgebungsvariable (Environment Variable) in Ihren Vercel-Projekteinstellungen hinzufügen:",
+  "settings.troubleshooting.step1": "Gehen Sie zu Ihren Vercel-Projekteinstellungen unter 'Environment Variables'.",
+  "settings.troubleshooting.step2": "Erstellen Sie eine neue Variable mit dem exakten Namen:",
+  "settings.troubleshooting.step3": "Fügen Sie Ihren API-Schlüssel als Wert ein.",
+  "settings.troubleshooting.step4": "Wichtig: Veröffentlichen Sie Ihr Projekt erneut (Redeploy), damit die Änderung wirksam wird.",
+  "settings.troubleshooting.vercelLink": "Vercel Dashboard öffnen"
 };
 
 // Type for the translation function

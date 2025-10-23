@@ -9,7 +9,8 @@ const AppStatusContext = createContext<AppStatusContextType | undefined>(undefin
 export const AppStatusProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // This check runs once when the app loads. It determines if the environment
   // variable has been correctly injected into the build by the hosting platform (e.g., Vercel).
-  const isApiKeyConfigured = !!process.env.API_KEY;
+  // Vercel (with Vite) requires a VITE_ prefix, so we check for both.
+  const isApiKeyConfigured = !!(process.env.VITE_API_KEY || process.env.API_KEY);
 
   const value = { isApiKeyConfigured };
 

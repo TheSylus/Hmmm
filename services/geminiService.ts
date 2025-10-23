@@ -7,12 +7,13 @@ let ai: GoogleGenAI;
 
 function getAiClient() {
     if (!ai) {
-        // The API key is expected to be available as process.env.API_KEY.
-        const apiKey = process.env.API_KEY;
+        // Vercel (and other Vite-based platforms) require env variables to be prefixed
+        // with VITE_ to be exposed to the browser. We check for that first.
+        const apiKey = process.env.VITE_API_KEY || process.env.API_KEY;
 
         if (!apiKey) {
             // This error will be shown if the API_KEY environment variable is not set.
-            throw new Error("API-Schlüssel nicht konfiguriert. Bitte stellen Sie sicher, dass die Umgebungsvariable 'API_KEY' in Ihren Projekteinstellungen (z.B. bei Vercel) gesetzt ist. Sie können die Funktionalität Ihres Schlüssels auch im Einstellungsmenü der App testen.");
+            throw new Error("API-Schlüssel nicht konfiguriert. Bitte setzen Sie die `VITE_API_KEY` (für Vercel/Vite) oder `API_KEY` Umgebungsvariable in Ihren Projekteinstellungen und starten Sie einen neuen Deploy.");
         }
         ai = new GoogleGenAI({ apiKey });
     }

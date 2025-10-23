@@ -3,7 +3,7 @@ import { useTranslation } from '../i18n';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
 import { useAppStatus } from '../contexts/AppStatusContext';
-import { XMarkIcon } from './Icons';
+import { XMarkIcon, ExternalLinkIcon } from './Icons';
 import { ApiKeyTester } from './ApiKeyTester';
 
 interface SettingsModalProps {
@@ -53,19 +53,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         </div>
         
         <div className="space-y-6">
-            {/* API Status */}
+            {/* API Status and Troubleshooting */}
             <div>
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">{t('settings.apiStatus.title')}</h3>
-                <div className={`flex items-start gap-3 p-3 rounded-lg ${isApiKeyConfigured ? 'bg-green-100 dark:bg-green-900/50' : 'bg-red-100 dark:bg-red-900/50'}`}>
-                    {isApiKeyConfigured ? (
+                {isApiKeyConfigured ? (
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-green-100 dark:bg-green-900/50">
                         <CheckCircleIcon className="w-6 h-6 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-                    ) : (
-                        <XCircleIcon className="w-6 h-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                    )}
-                    <p className={`text-sm ${isApiKeyConfigured ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'}`}>
-                        {t(isApiKeyConfigured ? 'settings.apiStatus.configured' : 'settings.apiStatus.notConfigured')}
-                    </p>
-                </div>
+                        <p className="text-sm text-green-800 dark:text-green-200">
+                            {t('settings.apiStatus.configured')}
+                        </p>
+                    </div>
+                ) : (
+                    <div className="border border-amber-500/50 bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg">
+                        <h4 className="font-bold text-amber-800 dark:text-amber-300">{t('settings.troubleshooting.title')}</h4>
+                        <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">{t('settings.troubleshooting.explanation')}</p>
+                        <p className="text-sm text-gray-800 dark:text-gray-200 mt-3 mb-2">{t('settings.troubleshooting.solution')}</p>
+                        <ol className="list-none space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                            <li>1. {t('settings.troubleshooting.step1')}</li>
+                            <li>2. {t('settings.troubleshooting.step2')} <code className="text-xs bg-gray-200 dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 font-mono py-0.5 px-1.5 rounded-md">VITE_API_KEY</code></li>
+                            <li>3. {t('settings.troubleshooting.step3')}</li>
+                            <li className="font-semibold">4. {t('settings.troubleshooting.step4')}</li>
+                        </ol>
+                         <a 
+                            href="https://vercel.com/dashboard" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 mt-4 w-full justify-center px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors text-sm font-semibold"
+                        >
+                            {t('settings.troubleshooting.vercelLink')}
+                            <ExternalLinkIcon className="w-4 h-4" />
+                        </a>
+                    </div>
+                )}
             </div>
 
             {/* AI Feature Toggle */}
