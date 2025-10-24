@@ -1,9 +1,8 @@
 import React from 'react';
 import { FoodItem, NutriScore } from '../types';
-import { StarIcon, TrashIcon, PencilIcon } from './Icons';
+import { StarIcon, TrashIcon, PencilIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon } from './Icons';
 import { useTranslation } from '../i18n';
 import { useTranslatedItem } from '../hooks/useTranslatedItem';
-import { AllergenDisplay } from './AllergenDisplay';
 
 interface FoodItemCardProps {
   item: FoodItem;
@@ -26,6 +25,27 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
 
   if (!displayItem) {
     return null; // Render nothing if the item is not available
+  }
+
+  const DietaryIcon: React.FC<{ type: 'lactoseFree' | 'vegan' | 'glutenFree', className?: string }> = ({ type, className }) => {
+      const icons = {
+          lactoseFree: <LactoseFreeIcon className={`${className} text-blue-600 dark:text-blue-400`} />,
+          vegan: <VeganIcon className={`${className}`} />,
+          glutenFree: <GlutenFreeIcon className={`${className}`} />,
+      };
+      const tooltips = {
+          lactoseFree: t('card.lactoseFreeTooltip'),
+          vegan: t('card.veganTooltip'),
+          glutenFree: t('card.glutenFreeTooltip'),
+      };
+      return (
+          <div className="relative group flex items-center justify-center">
+              {icons[type]}
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                  {tooltips[type]}
+              </span>
+          </div>
+      );
   }
 
   return (
@@ -58,9 +78,11 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
                             {displayItem.nutriScore}
                             </div>
                         )}
-                        {displayItem.allergens && displayItem.allergens.length > 0 && (
-                            <AllergenDisplay allergens={displayItem.allergens} />
-                        )}
+                         <div className="flex items-center gap-1.5">
+                            {displayItem.isLactoseFree && <DietaryIcon type="lactoseFree" className="w-6 h-6" />}
+                            {displayItem.isVegan && <DietaryIcon type="vegan" className="w-6 h-6" />}
+                            {displayItem.isGlutenFree && <DietaryIcon type="glutenFree" className="w-6 h-6" />}
+                        </div>
                     </div>
                 </div>
 

@@ -3,11 +3,10 @@ import { FoodItem, NutriScore } from '../types';
 import { BoundingBox, analyzeFoodImage, analyzeIngredientsImage } from '../services/geminiService';
 import { CameraCapture } from './CameraCapture';
 import { ImageCropper } from './ImageCropper';
-import { StarIcon, SparklesIcon, CameraIcon, PlusCircleIcon, XMarkIcon, DocumentTextIcon } from './Icons';
+import { StarIcon, SparklesIcon, CameraIcon, PlusCircleIcon, XMarkIcon, DocumentTextIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon } from './Icons';
 import { useTranslation } from '../i18n';
 import { useAppSettings } from '../contexts/AppSettingsContext';
 import { translateTexts } from '../services/translationService';
-import { AllergenDisplay } from './AllergenDisplay';
 
 interface FoodItemFormProps {
   onSaveItem: (item: Omit<FoodItem, 'id'>) => void;
@@ -38,7 +37,11 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   const [nutriScore, setNutriScore] = useState<NutriScore | ''>('');
   const [tags, setTags] = useState('');
   const [ingredients, setIngredients] = useState<string[]>([]);
-  const [allergens, setAllergens] = useState<string[]>([]);
+  const [dietary, setDietary] = useState({
+    isLactoseFree: false,
+    isVegan: false,
+    isGlutenFree: false,
+  });
 
   // UI/Flow state
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -61,7 +64,11 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
       setNutriScore(initialData.nutriScore || '');
       setTags(initialData.tags?.join(', ') || '');
       setIngredients(initialData.ingredients || []);
-      setAllergens(initialData.allergens || []);
+      setDietary({
+        isLactoseFree: initialData.isLactoseFree || false,
+        isVegan: initialData.isVegan || false,
+        isGlutenFree: initialData.isGlutenFree || false,
+      });
     } else {
       resetFormState();
     }
@@ -76,7 +83,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
     setNutriScore('');
     setTags('');
     setIngredients([]);
-    setAllergens([]);
+    setDietary({ isLactoseFree: false, isVegan: false, isGlutenFree: false });
     setError(null);
     setIsLoading(false);
     if(fileInputRef.current) fileInputRef.current.value = '';
@@ -149,16 +156,12 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
         const result = await analyzeIngredientsImage(imageDataUrl);
 
         let finalIngredients = result.ingredients || [];
-        let finalAllergens = result.allergens || [];
-        const originalIngredientsCount = finalIngredients.length;
-
-        if (language !== 'en' && (finalIngredients.length > 0 || finalAllergens.length > 0)) {
-            const textsToTranslate = [...finalIngredients, ...finalAllergens];
+        
+        if (language !== 'en' && finalIngredients.length > 0) {
             try {
-                const translated = await translateTexts(textsToTranslate, language);
-                if (translated.length === textsToTranslate.length) {
-                    finalIngredients = translated.slice(0, originalIngredientsCount);
-                    finalAllergens = translated.slice(originalIngredientsCount);
+                const translated = await translateTexts(finalIngredients, language);
+                if (translated.length === finalIngredients.length) {
+                    finalIngredients = translated;
                 }
             } catch(e) {
                 console.error("Failed to translate ingredients AI results for form", e);
@@ -167,7 +170,11 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
         }
 
         setIngredients(finalIngredients);
-        setAllergens(finalAllergens);
+        setDietary({
+            isLactoseFree: result.isLactoseFree,
+            isVegan: result.isVegan,
+            isGlutenFree: result.isGlutenFree,
+        });
       } catch (e) {
         console.error(e);
         const errorMessage = e instanceof Error ? e.message : t('form.error.ingredientsAiError');
@@ -204,6 +211,10 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
     }
   };
 
+  const handleDietaryChange = (key: keyof typeof dietary) => {
+    setDietary(prev => ({...prev, [key]: !prev[key]}));
+  }
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setError(null); // Clear previous errors
@@ -221,7 +232,9 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
       nutriScore: nutriScore || undefined,
       tags: tags ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : undefined,
       ingredients: ingredients.length > 0 ? ingredients : undefined,
-      allergens: allergens.length > 0 ? allergens : undefined,
+      isLactoseFree: dietary.isLactoseFree,
+      isVegan: dietary.isVegan,
+      isGlutenFree: dietary.isGlutenFree,
     });
   };
 
@@ -343,7 +356,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                         ))}
                     </div>
                 </div>
-                 {/* Ingredients and Allergens Section */}
+                 {/* Ingredients and Dietary Section */}
                  <div className="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-700/50">
                     <div className="flex justify-between items-center">
                         <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">{t('form.ingredients.title')}</h3>
@@ -366,20 +379,31 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                         </div>
                     ) : (
                         <div>
-                            {allergens.length > 0 && (
-                                <div className="mb-2">
-                                    <h4 className="text-sm font-medium text-red-600 dark:text-red-400 mb-1">{t('form.ingredients.allergens')}:</h4>
-                                    <AllergenDisplay allergens={allergens} />
+                             <div className="mb-2">
+                                <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{t('form.dietary.title')}:</h4>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button type="button" onClick={() => handleDietaryChange('isLactoseFree')} aria-pressed={dietary.isLactoseFree} className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg border-2 transition-colors ${dietary.isLactoseFree ? 'bg-blue-100 dark:bg-blue-900/50 border-blue-500 dark:border-blue-400 text-blue-700 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700/50 border-transparent text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'}`}>
+                                        <LactoseFreeIcon className="w-7 h-7 text-blue-600 dark:text-blue-400" />
+                                        <span className="text-xs font-semibold">{t('form.dietary.lactoseFree')}</span>
+                                    </button>
+                                    <button type="button" onClick={() => handleDietaryChange('isVegan')} aria-pressed={dietary.isVegan} className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg border-2 transition-colors ${dietary.isVegan ? 'bg-green-100 dark:bg-green-900/50 border-green-500 dark:border-green-400 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700/50 border-transparent hover:border-gray-300 dark:hover:border-gray-600'}`}>
+                                        <VeganIcon className="w-7 h-7" />
+                                        <span className="text-xs font-semibold">{t('form.dietary.vegan')}</span>
+                                    </button>
+                                    <button type="button" onClick={() => handleDietaryChange('isGlutenFree')} aria-pressed={dietary.isGlutenFree} className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg border-2 transition-colors ${dietary.isGlutenFree ? 'bg-amber-100 dark:bg-amber-900/50 border-amber-500 dark:border-amber-400 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700/50 border-transparent hover:border-gray-300 dark:hover:border-gray-600'}`}>
+                                        <GlutenFreeIcon className="w-7 h-7" />
+                                        <span className="text-xs font-semibold">{t('form.dietary.glutenFree')}</span>
+                                    </button>
                                 </div>
-                            )}
+                            </div>
                              {ingredients.length > 0 && (
                                 <div>
-                                    <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{t('form.ingredients.ingredientsList')}:</h4>
+                                    <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 mt-3">{t('form.ingredients.ingredientsList')}:</h4>
                                     <p className="text-xs text-gray-500 dark:text-gray-500 italic leading-snug">{ingredients.join(', ')}</p>
                                 </div>
                             )}
-                            {ingredients.length === 0 && allergens.length === 0 && (
-                                <p className="text-sm text-gray-400 dark:text-gray-500">{t('form.ingredients.placeholder')}</p>
+                            {ingredients.length === 0 && (
+                                <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">{t('form.ingredients.placeholder')}</p>
                             )}
                         </div>
                     )}

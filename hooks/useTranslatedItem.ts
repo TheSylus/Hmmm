@@ -28,9 +28,8 @@ export const useTranslatedItem = (item: FoodItem | null): FoodItem | null => {
 
             const name = item.name || '';
             const tags = item.tags || [];
-            const allergens = item.allergens || [];
             
-            const textsToTranslate = [name, ...tags, ...allergens];
+            const textsToTranslate = [name, ...tags];
             
             if (textsToTranslate.every(text => !text)) return;
 
@@ -47,10 +46,6 @@ export const useTranslatedItem = (item: FoodItem | null): FoodItem | null => {
                 if (tags.length > 0) {
                     newTranslatedItem.tags = translatedTexts.slice(currentIndex, currentIndex + tags.length);
                     currentIndex += tags.length;
-                }
-
-                if (allergens.length > 0) {
-                    newTranslatedItem.allergens = translatedTexts.slice(currentIndex, currentIndex + allergens.length);
                 }
 
                 setTranslatedItem(newTranslatedItem);
