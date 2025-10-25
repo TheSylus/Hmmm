@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FoodItem } from '../types';
-import { useTranslation } from '../i18n';
+import { useTranslation } from '../i18n/index';
 import { translateTexts } from '../services/translationService';
 
 const SOURCE_LANGUAGE = 'en';

@@ -5,12 +5,18 @@ import { FoodItemList } from './components/FoodItemList';
 import { DuplicateConfirmationModal } from './components/DuplicateConfirmationModal';
 import { ImageModal } from './components/ImageModal';
 import { SettingsModal } from './components/SettingsModal';
-import { ApiKeyModal } from './components/ApiKeyModal';
-import { useTranslation } from './i18n';
+import { ApiKeyBanner } from './components/ApiKeyBanner';
+import { useTranslation } from './i18n/index';
 import { PlusCircleIcon, SettingsIcon } from './components/Icons';
+
+const hasValidApiKey = () => {
+    const key = localStorage.getItem('gemini_api_key');
+    return key && key !== 'MANUAL_ENTRY_MODE';
+};
 
 const App: React.FC = () => {
   const { t } = useTranslation();
+  // This state now primarily tracks if a key exists to conditionally render AI features
   const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem('gemini_api_key'));
 
   const [foodItems, setFoodItems] = useState<FoodItem[]>(() => {
@@ -33,11 +39,20 @@ const App: React.FC = () => {
   
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  const handleKeySave = useCallback((newKey: string) => {
-    localStorage.setItem('gemini_api_key', newKey);
-    setApiKey(newKey);
+  
+  const [isBannerVisible, setIsBannerVisible] = useState(false);
+  
+  useEffect(() => {
+    // Show banner if key is missing and it hasn't been dismissed this session
+    if (!hasValidApiKey() && sessionStorage.getItem('apiKeyBannerDismissed') !== 'true') {
+      setIsBannerVisible(true);
+    }
   }, []);
+  
+  const handleDismissBanner = () => {
+    sessionStorage.setItem('apiKeyBannerDismissed', 'true');
+    setIsBannerVisible(false);
+  };
 
   const handleKeyUpdate = useCallback((newKey: string | null) => {
     if (newKey) {
@@ -46,7 +61,11 @@ const App: React.FC = () => {
         localStorage.removeItem('gemini_api_key');
     }
     setApiKey(newKey);
-}, []);
+    // If a valid key is added, hide the banner
+    if (newKey && newKey !== 'MANUAL_ENTRY_MODE') {
+      setIsBannerVisible(false);
+    }
+  }, []);
 
 
   useEffect(() => {
@@ -137,10 +156,6 @@ const App: React.FC = () => {
 
   const isSearching = searchTerm.trim() !== '';
 
-  if (!apiKey) {
-    return <ApiKeyModal onKeySave={handleKeySave} />;
-  }
-
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 font-sans transition-colors duration-300">
       <header className="bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm shadow-md dark:shadow-lg sticky top-0 z-20">
@@ -197,6 +212,8 @@ const App: React.FC = () => {
               </div>
           )}
       </header>
+      
+      {isBannerVisible && <ApiKeyBanner onDismiss={handleDismissBanner} onOpenSettings={() => setIsSettingsOpen(true)} />}
 
       <main className="container mx-auto p-4 md:p-8">
         {isFormVisible ? (

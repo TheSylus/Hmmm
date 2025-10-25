@@ -117,7 +117,7 @@ export const analyzeFoodImage = async (base64Image: string): Promise<{ name: str
 };
 
 
-export const analyzeIngredientsImage = async (base64Image: string): Promise<{ ingredients: string[]; isLactoseFree: boolean; isVegan: boolean; isGlutenFree: boolean; }> => {
+export const analyzeIngredientsImage = async (base64Image: string): Promise<{ ingredients: string[]; allergens: string[]; isLactoseFree: boolean; isVegan: boolean; isGlutenFree: boolean; }> => {
     const match = base64Image.match(/^data:(image\/[a-z]+);base64,(.*)$/);
     if (!match) {
       throw new Error("Invalid base64 image string.");
@@ -136,7 +136,7 @@ export const analyzeIngredientsImage = async (base64Image: string): Promise<{ in
       };
   
       const textPart = {
-        text: "Analyze this image of a food product's ingredients list. Extract the full list of ingredients. Based on the ingredients, determine if the product is lactose-free, vegan, and/or gluten-free. Return a single JSON object with four keys: 'ingredients' (an array of strings), 'isLactoseFree' (boolean), 'isVegan' (boolean), and 'isGlutenFree' (boolean). If a key cannot be determined, default the boolean to false.",
+        text: "Analyze this image of a food product's ingredients list. Extract the full list of ingredients. Also, extract a list of common allergens mentioned in the ingredients. Based on the ingredients, determine if the product is lactose-free, vegan, and/or gluten-free. Return a single JSON object with five keys: 'ingredients' (an array of strings), 'allergens' (an array of strings), 'isLactoseFree' (boolean), 'isVegan' (boolean), and 'isGlutenFree' (boolean). If a key cannot be determined, default the boolean to false and arrays to empty.",
       };
   
       const response = await gemini.models.generateContent({
@@ -152,6 +152,11 @@ export const analyzeIngredientsImage = async (base64Image: string): Promise<{ in
                 items: { type: Type.STRING },
                 description: "An array of strings, where each string is a single ingredient from the list.",
               },
+               allergens: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "An array of strings, where each string is a potential allergen found in the ingredients list.",
+              },
               isLactoseFree: {
                 type: Type.BOOLEAN,
                 description: "True if the product is lactose-free based on its ingredients, false otherwise.",
@@ -165,7 +170,7 @@ export const analyzeIngredientsImage = async (base64Image: string): Promise<{ in
                 description: "True if the product is gluten-free based on its ingredients, false otherwise.",
               },
             },
-            required: ["ingredients", "isLactoseFree", "isVegan", "isGlutenFree"],
+            required: ["ingredients", "allergens", "isLactoseFree", "isVegan", "isGlutenFree"],
           },
         },
       });
@@ -175,6 +180,7 @@ export const analyzeIngredientsImage = async (base64Image: string): Promise<{ in
 
       return {
         ingredients: result.ingredients || [],
+        allergens: result.allergens || [],
         isLactoseFree: result.isLactoseFree || false,
         isVegan: result.isVegan || false,
         isGlutenFree: result.isGlutenFree || false,

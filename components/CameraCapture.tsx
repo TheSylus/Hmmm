@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { useTranslation } from '../i18n';
+import { useTranslation } from '../i18n/index';
 
 interface CameraCaptureProps {
   onCapture: (imageDataUrl: string) => void;

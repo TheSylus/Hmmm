@@ -81,6 +81,12 @@ export const AlertTriangleIcon: React.FC<{ className?: string }> = ({ className 
     </svg>
 );
 
+export const BarcodeIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.5v15m3-15v15m3-15v15m3-15v15m3-15v15m3-15v15M3.75 4.5h16.5" />
+    </svg>
+);
+
 
 // Dietary Icons
 export const LactoseFreeIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -106,7 +112,6 @@ export const GlutenFreeIcon: React.FC<{ className?: string }> = ({ className }) 
 );
 
 
-// Fix: Add missing allergen icons
 // Allergen Icons
 export const AllergenGlutenIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>

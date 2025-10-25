@@ -1,10 +1,13 @@
 import React, { useState, FormEvent, useRef, useEffect } from 'react';
 import { FoodItem, NutriScore } from '../types';
 import { BoundingBox, analyzeFoodImage, analyzeIngredientsImage } from '../services/geminiService';
+import { fetchProductFromOpenFoodFacts, searchProductByNameFromOpenFoodFacts } from '../services/openFoodFactsService';
 import { CameraCapture } from './CameraCapture';
+import { BarcodeScanner } from './BarcodeScanner';
 import { ImageCropper } from './ImageCropper';
-import { StarIcon, SparklesIcon, CameraIcon, PlusCircleIcon, XMarkIcon, DocumentTextIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon } from './Icons';
-import { useTranslation } from '../i18n';
+import { StarIcon, SparklesIcon, CameraIcon, PlusCircleIcon, XMarkIcon, DocumentTextIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon, BarcodeIcon } from './Icons';
+import { AllergenDisplay } from './AllergenDisplay';
+import { useTranslation } from '../i18n/index';
 import { useAppSettings } from '../contexts/AppSettingsContext';
 import { translateTexts } from '../services/translationService';
 
@@ -13,6 +16,11 @@ interface FoodItemFormProps {
   onCancel: () => void;
   initialData?: FoodItem | null;
 }
+
+const hasValidApiKey = () => {
+    const key = localStorage.getItem('gemini_api_key');
+    return key && key !== 'MANUAL_ENTRY_MODE';
+};
 
 const nutriScoreOptions: NutriScore[] = ['A', 'B', 'C', 'D', 'E'];
 const nutriScoreColors: Record<NutriScore, string> = {
@@ -25,9 +33,10 @@ const nutriScoreColors: Record<NutriScore, string> = {
 
 export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel, initialData }) => {
   const { t, language } = useTranslation();
-  const { isAiEnabled } = useAppSettings();
+  const { isAiEnabled, isBarcodeScannerEnabled } = useAppSettings();
   
   const isEditing = !!initialData;
+  const isAiAvailable = isAiEnabled && hasValidApiKey();
 
   // Form state
   const [name, setName] = useState('');
@@ -37,6 +46,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   const [nutriScore, setNutriScore] = useState<NutriScore | ''>('');
   const [tags, setTags] = useState('');
   const [ingredients, setIngredients] = useState<string[]>([]);
+  const [allergens, setAllergens] = useState<string[]>([]);
   const [dietary, setDietary] = useState({
     isLactoseFree: false,
     isVegan: false,
@@ -45,11 +55,14 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
 
   // UI/Flow state
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
   const [scanMode, setScanMode] = useState<'main' | 'ingredients'>('main');
   const [uncroppedImage, setUncroppedImage] = useState<string | null>(null);
   const [suggestedCrop, setSuggestedCrop] = useState<BoundingBox | null | undefined>(null);
   const [isCropperOpen, setIsCropperOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState({ active: false, message: '' });
+  const [highlightedFields, setHighlightedFields] = useState<string[]>([]);
   const [isIngredientsLoading, setIngredientsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -64,6 +77,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
       setNutriScore(initialData.nutriScore || '');
       setTags(initialData.tags?.join(', ') || '');
       setIngredients(initialData.ingredients || []);
+      setAllergens(initialData.allergens || []);
       setDietary({
         isLactoseFree: initialData.isLactoseFree || false,
         isVegan: initialData.isVegan || false,
@@ -74,6 +88,15 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
     }
   }, [initialData]);
 
+  useEffect(() => {
+    if (highlightedFields.length > 0) {
+      const timer = setTimeout(() => {
+        setHighlightedFields([]);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedFields]);
+
 
   const resetFormState = () => {
     setName('');
@@ -83,6 +106,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
     setNutriScore('');
     setTags('');
     setIngredients([]);
+    setAllergens([]);
     setDietary({ isLactoseFree: false, isVegan: false, isGlutenFree: false });
     setError(null);
     setIsLoading(false);
@@ -98,13 +122,61 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
     setScanMode('ingredients');
     setIsCameraOpen(true);
   };
+  
+  const handleBarcodeScanned = async (barcode: string) => {
+    setIsBarcodeScannerOpen(false);
+    setIsLoading(true);
+    setError(null);
+    try {
+      const productData = await fetchProductFromOpenFoodFacts(barcode);
+      
+      let finalName = productData.name || '';
+      let finalTags = productData.tags || [];
+      let finalIngredients = productData.ingredients || [];
+      let finalAllergens = productData.allergens || [];
+
+      if (language !== 'en' && isAiAvailable) {
+        const textsToTranslate = [finalName, ...finalTags, ...finalIngredients, ...finalAllergens];
+        try {
+          const translated = await translateTexts(textsToTranslate, language);
+          let currentIndex = 0;
+          finalName = translated[currentIndex++];
+          finalTags = translated.slice(currentIndex, currentIndex + finalTags.length);
+          currentIndex += finalTags.length;
+          finalIngredients = translated.slice(currentIndex, currentIndex + finalIngredients.length);
+          currentIndex += finalIngredients.length;
+          finalAllergens = translated.slice(currentIndex, currentIndex + finalAllergens.length);
+        } catch (e) {
+          console.error("Failed to translate OFF results for form", e);
+        }
+      }
+
+      setName(finalName);
+      setTags(finalTags.join(', '));
+      setNutriScore((productData.nutriScore?.toUpperCase() as NutriScore) || '');
+      setImage(productData.image || null);
+      setIngredients(finalIngredients);
+      setAllergens(finalAllergens);
+      setDietary({
+        isLactoseFree: productData.isLactoseFree || false,
+        isVegan: productData.isVegan || false,
+        isGlutenFree: productData.isGlutenFree || false,
+      });
+
+    } catch(e) {
+       console.error(e);
+       const errorMessage = e instanceof Error ? e.message : t('form.error.barcodeError');
+       setError(errorMessage);
+    } finally {
+        setIsLoading(false);
+    }
+  };
 
   const handleImageFromCamera = async (imageDataUrl: string) => {
     setIsCameraOpen(false);
     setError(null);
   
-    if (!isAiEnabled) {
-      // If AI is disabled, only the main image can be set.
+    if (!isAiAvailable) {
       setUncroppedImage(imageDataUrl);
       setSuggestedCrop(null);
       setIsCropperOpen(true);
@@ -112,35 +184,100 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
     }
   
     if (scanMode === 'main') {
-      setIsLoading(true);
+      let progressInterval: number | undefined;
       try {
-        const result = await analyzeFoodImage(imageDataUrl);
-        
-        let finalName = result.name || '';
-        let finalTags = result.tags || [];
+        const progressMessages = [
+            t('form.aiProgress.readingName'),
+            t('form.aiProgress.findingScore'),
+            t('form.aiProgress.generatingTags'),
+            t('form.aiProgress.searchingDatabase'),
+            t('form.aiProgress.locatingProduct')
+        ];
+        setAnalysisProgress({ active: true, message: progressMessages[0] });
+        let messageIndex = 0;
+        progressInterval = window.setInterval(() => {
+            messageIndex = (messageIndex + 1) % progressMessages.length;
+            setAnalysisProgress(prev => ({ ...prev, message: progressMessages[messageIndex] }));
+        }, 1500);
 
-        if (language !== 'en' && (finalName || finalTags.length > 0)) {
-            const textsToTranslate = [finalName, ...finalTags];
+        // Step 1: Analyze image with AI
+        const aiResult = await analyzeFoodImage(imageDataUrl);
+        
+        // Step 2: Fetch supplementary data from Open Food Facts
+        let offResult: Partial<FoodItem> = {};
+        if (aiResult.name) {
+            try {
+                setAnalysisProgress(prev => ({ ...prev, message: t('form.aiProgress.searchingDatabase') }));
+                offResult = await searchProductByNameFromOpenFoodFacts(aiResult.name);
+            } catch (offError) {
+                console.warn("Could not fetch supplementary data from Open Food Facts:", offError);
+                // Non-critical error, proceed with AI data only
+            }
+        }
+        
+        if(progressInterval) clearInterval(progressInterval);
+        setAnalysisProgress({ active: true, message: t('form.aiProgress.complete') });
+        
+        // Step 3: Merge AI and OFF results
+        const combinedTags = new Set([...(aiResult.tags || []), ...(offResult.tags || [])]);
+
+        let mergedData = {
+            name: aiResult.name || '',
+            tags: Array.from(combinedTags),
+            nutriScore: (aiResult.nutriScore || offResult.nutriScore || '') as NutriScore | '',
+            ingredients: offResult.ingredients || [],
+            allergens: offResult.allergens || [],
+            isLactoseFree: offResult.isLactoseFree || false,
+            isVegan: offResult.isVegan || false,
+            isGlutenFree: offResult.isGlutenFree || false,
+        };
+        
+        const newHighlightedFields: string[] = [];
+        if (mergedData.name) newHighlightedFields.push('name');
+        if (mergedData.tags.length > 0) newHighlightedFields.push('tags');
+        if (mergedData.nutriScore) newHighlightedFields.push('nutriScore');
+
+        // Step 4: Translate if necessary
+        if (language !== 'en' && textsNeedTranslation(mergedData)) {
+            const textsToTranslate = [
+                mergedData.name, ...mergedData.tags, ...mergedData.ingredients, ...mergedData.allergens
+            ];
+            
             try {
                 const translated = await translateTexts(textsToTranslate, language);
                 if (translated.length === textsToTranslate.length) {
-                    finalName = translated[0];
-                    finalTags = translated.slice(1);
+                    let i = 0;
+                    mergedData.name = translated[i++];
+                    mergedData.tags = translated.slice(i, i + mergedData.tags.length);
+                    i += mergedData.tags.length;
+                    mergedData.ingredients = translated.slice(i, i + mergedData.ingredients.length);
+                    i += mergedData.ingredients.length;
+                    mergedData.allergens = translated.slice(i, i + mergedData.allergens.length);
                 }
-            } catch(e) {
-                console.error("Failed to translate main AI results for form", e);
-                // Fallback to English if translation fails.
+            } catch (e) {
+                console.error("Failed to translate merged AI/OFF results for form", e);
             }
         }
+        
+        // Step 5: Set form state
+        setName(mergedData.name);
+        setTags(mergedData.tags.join(', '));
+        setNutriScore(mergedData.nutriScore);
+        setIngredients(mergedData.ingredients);
+        setAllergens(mergedData.allergens);
+        setDietary({
+            isLactoseFree: mergedData.isLactoseFree,
+            isVegan: mergedData.isVegan,
+            isGlutenFree: mergedData.isGlutenFree,
+        });
 
-        setName(finalName);
-        setTags(finalTags.join(', '));
-        setNutriScore(result.nutriScore || '');
         setUncroppedImage(imageDataUrl);
-        setSuggestedCrop(result.boundingBox);
+        setSuggestedCrop(aiResult.boundingBox);
         setIsCropperOpen(true);
+        setHighlightedFields(newHighlightedFields);
 
       } catch (e) {
+        if(progressInterval) clearInterval(progressInterval);
         console.error(e);
         const errorMessage = e instanceof Error ? e.message : t('form.error.genericAiError');
         setError(errorMessage);
@@ -148,7 +285,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
         setSuggestedCrop(null);
         setIsCropperOpen(true);
       } finally {
-        setIsLoading(false);
+         setTimeout(() => setAnalysisProgress({ active: false, message: '' }), 500);
       }
     } else { // scanMode === 'ingredients'
       setIngredientsLoading(true);
@@ -156,20 +293,23 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
         const result = await analyzeIngredientsImage(imageDataUrl);
 
         let finalIngredients = result.ingredients || [];
+        let finalAllergens = result.allergens || [];
         
-        if (language !== 'en' && finalIngredients.length > 0) {
+        if (language !== 'en' && (finalIngredients.length > 0 || finalAllergens.length > 0)) {
             try {
-                const translated = await translateTexts(finalIngredients, language);
-                if (translated.length === finalIngredients.length) {
-                    finalIngredients = translated;
+                const textsToTranslate = [...finalIngredients, ...finalAllergens];
+                const translated = await translateTexts(textsToTranslate, language);
+                if (translated.length === textsToTranslate.length) {
+                    finalIngredients = translated.slice(0, finalIngredients.length);
+                    finalAllergens = translated.slice(finalIngredients.length);
                 }
             } catch(e) {
                 console.error("Failed to translate ingredients AI results for form", e);
-                // Fallback to English if translation fails.
             }
         }
 
         setIngredients(finalIngredients);
+        setAllergens(finalAllergens);
         setDietary({
             isLactoseFree: result.isLactoseFree,
             isVegan: result.isVegan,
@@ -184,6 +324,10 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
       }
     }
   };
+
+  const textsNeedTranslation = (data: {name:string, tags:string[], ingredients:string[], allergens:string[]}) => {
+    return data.name || data.tags.length > 0 || data.ingredients.length > 0 || data.allergens.length > 0;
+  }
 
   const handleCropComplete = (croppedImageUrl: string) => {
     setImage(croppedImageUrl);
@@ -217,7 +361,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    setError(null); // Clear previous errors
+    setError(null);
 
     if (!name.trim() || rating === 0) {
       setError(t('form.error.nameAndRating'));
@@ -232,6 +376,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
       nutriScore: nutriScore || undefined,
       tags: tags ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : undefined,
       ingredients: ingredients.length > 0 ? ingredients : undefined,
+      allergens: allergens.length > 0 ? allergens : undefined,
       isLactoseFree: dietary.isLactoseFree,
       isVegan: dietary.isVegan,
       isGlutenFree: dietary.isGlutenFree,
@@ -245,6 +390,24 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   
   return (
     <>
+      <style>{`
+        .highlight-ai {
+          animation: highlight-ai-anim 2.5s ease-out;
+        }
+        @keyframes highlight-ai-anim {
+          0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+          25% { box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.5); }
+          100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+        }
+        .dark .highlight-ai {
+            animation-name: highlight-ai-anim-dark;
+        }
+        @keyframes highlight-ai-anim-dark {
+          0% { box-shadow: 0 0 0 0 rgba(129, 140, 248, 0); }
+          25% { box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.4); }
+          100% { box-shadow: 0 0 0 0 rgba(129, 140, 248, 0); }
+        }
+      `}</style>
       <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-lg mb-8">
          <h2 className="text-2xl font-bold text-gray-900 dark:text-white text-center -mb-2">
             {isEditing ? t('form.editTitle') : t('form.addNewButton')}
@@ -252,11 +415,16 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
         <div className="flex flex-col md:flex-row gap-4 mt-6">
             <div className="w-full md:w-1/3 flex-shrink-0">
                 <div className="aspect-square bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center relative overflow-hidden text-gray-500 dark:text-gray-400">
-                    {isLoading && (
-                        <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-20">
+                    {analysisProgress.active && (
+                        <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-20 p-4">
                             <SparklesIcon className="w-10 h-10 animate-pulse text-indigo-400" />
-                            <p className="mt-2 text-sm text-gray-300">{t('form.image.loading')}</p>
+                            <p className="mt-2 text-sm text-gray-300 text-center">{analysisProgress.message}</p>
                         </div>
+                    )}
+                    {isLoading && !analysisProgress.active && (
+                         <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-20">
+                            <div className="w-10 h-10 border-4 border-t-indigo-400 border-gray-400 rounded-full animate-spin"></div>
+                         </div>
                     )}
                     {image ? (
                         <>
@@ -277,27 +445,38 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                         </div>
                     )}
                 </div>
-                <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className={`grid ${isBarcodeScannerEnabled ? 'grid-cols-2' : 'grid-cols-1'} gap-2 mt-2`}>
+                    {isBarcodeScannerEnabled && (
+                        <button
+                            type="button"
+                            onClick={() => setIsBarcodeScannerOpen(true)}
+                            className="w-full flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-md transition disabled:bg-sky-400 dark:disabled:bg-gray-600"
+                            disabled={isLoading || analysisProgress.active}
+                        >
+                            <BarcodeIcon className="w-5 h-5" />
+                            <span>{t('form.button.scanBarcode')}</span>
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={handleScanMainImage}
                         className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md transition disabled:bg-indigo-400 dark:disabled:bg-gray-600"
-                        disabled={isLoading}
+                        disabled={isLoading || analysisProgress.active}
                     >
                         <CameraIcon className="w-5 h-5" />
                         <span>{t('form.button.scanNew')}</span>
                     </button>
-                     <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full flex items-center justify-center gap-2 bg-gray-500 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-md transition disabled:bg-gray-400 dark:disabled:bg-gray-500"
-                        disabled={isLoading}
-                    >
-                        <PlusCircleIcon className="w-5 h-5" />
-                        <span>{t('form.button.upload')}</span>
-                    </button>
-                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
                 </div>
+                 <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full mt-2 flex items-center justify-center gap-2 bg-gray-500 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-md transition disabled:bg-gray-400 dark:disabled:bg-gray-500"
+                    disabled={isLoading || analysisProgress.active}
+                >
+                    <PlusCircleIcon className="w-5 h-5" />
+                    <span>{t('form.button.upload')}</span>
+                </button>
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
             </div>
 
             <div className="w-full md:w-2/3 space-y-4">
@@ -307,7 +486,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                     value={name}
                     onChange={e => setName(e.target.value)}
                     required
-                    className="w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3"
+                    className={`w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3 transition-shadow ${highlightedFields.includes('name') ? 'highlight-ai' : ''}`}
                 />
                 <div className="flex items-center gap-4">
                     <label className="text-gray-700 dark:text-gray-300 font-medium">{t('form.label.rating')}</label>
@@ -337,30 +516,32 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                     placeholder={t('form.placeholder.tags')}
                     value={tags}
                     onChange={e => setTags(e.target.value)}
-                    className="w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3"
+                    className={`w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3 transition-shadow ${highlightedFields.includes('tags') ? 'highlight-ai' : ''}`}
                 />
-                <div className="flex items-center gap-4">
-                    <label className="text-gray-700 dark:text-gray-300 font-medium shrink-0">{t('form.label.nutriScore')}</label>
-                    <div className="flex items-center gap-2 flex-wrap">
-                        {nutriScoreOptions.map(score => (
-                            <button
-                                type="button"
-                                key={score}
-                                onClick={() => setNutriScore(current => current === score ? '' : score)}
-                                className={`w-8 h-8 rounded-full text-white font-bold flex items-center justify-center transition-transform transform ${nutriScoreColors[score]} ${nutriScore === score ? 'ring-2 ring-indigo-500 dark:ring-indigo-400 ring-offset-2 ring-offset-white dark:ring-offset-gray-800 scale-110' : 'hover:scale-105'}`}
-                                aria-pressed={nutriScore === score}
-                                aria-label={t('form.aria.selectNutriScore', { score })}
-                            >
-                                {score}
-                            </button>
-                        ))}
+                <div className={`p-2 rounded-md transition-shadow ${highlightedFields.includes('nutriScore') ? 'highlight-ai' : ''}`}>
+                    <div className="flex items-center gap-4">
+                        <label className="text-gray-700 dark:text-gray-300 font-medium shrink-0">{t('form.label.nutriScore')}</label>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {nutriScoreOptions.map(score => (
+                                <button
+                                    type="button"
+                                    key={score}
+                                    onClick={() => setNutriScore(current => current === score ? '' : score)}
+                                    className={`w-8 h-8 rounded-full text-white font-bold flex items-center justify-center transition-transform transform ${nutriScoreColors[score]} ${nutriScore === score ? 'ring-2 ring-indigo-500 dark:ring-indigo-400 ring-offset-2 ring-offset-white dark:ring-offset-gray-800 scale-110' : 'hover:scale-105'}`}
+                                    aria-pressed={nutriScore === score}
+                                    aria-label={t('form.aria.selectNutriScore', { score })}
+                                >
+                                    {score}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
                  {/* Ingredients and Dietary Section */}
                  <div className="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-700/50">
                     <div className="flex justify-between items-center">
                         <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">{t('form.ingredients.title')}</h3>
-                        {isAiEnabled && (
+                        {isAiAvailable && (
                             <button
                                 type="button"
                                 onClick={handleScanIngredients}
@@ -382,8 +563,8 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                              <div className="mb-2">
                                 <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{t('form.dietary.title')}:</h4>
                                 <div className="grid grid-cols-3 gap-2">
-                                    <button type="button" onClick={() => handleDietaryChange('isLactoseFree')} aria-pressed={dietary.isLactoseFree} className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg border-2 transition-colors ${dietary.isLactoseFree ? 'bg-blue-100 dark:bg-blue-900/50 border-blue-500 dark:border-blue-400 text-blue-700 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700/50 border-transparent text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'}`}>
-                                        <LactoseFreeIcon className="w-7 h-7 text-blue-600 dark:text-blue-400" />
+                                    <button type="button" onClick={() => handleDietaryChange('isLactoseFree')} aria-pressed={dietary.isLactoseFree} className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg border-2 transition-colors ${dietary.isLactoseFree ? 'bg-blue-100 dark:bg-blue-900/50 border-blue-500 dark:border-blue-400 text-blue-700 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700/50 border-transparent text-blue-600 dark:text-blue-400 hover:border-gray-300 dark:hover:border-gray-600'}`}>
+                                        <LactoseFreeIcon className="w-7 h-7" />
                                         <span className="text-xs font-semibold">{t('form.dietary.lactoseFree')}</span>
                                     </button>
                                     <button type="button" onClick={() => handleDietaryChange('isVegan')} aria-pressed={dietary.isVegan} className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg border-2 transition-colors ${dietary.isVegan ? 'bg-green-100 dark:bg-green-900/50 border-green-500 dark:border-green-400 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700/50 border-transparent hover:border-gray-300 dark:hover:border-gray-600'}`}>
@@ -396,6 +577,12 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                                     </button>
                                 </div>
                             </div>
+                            {allergens.length > 0 && (
+                                <div>
+                                    <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 mt-3">{t('form.allergens.title')}:</h4>
+                                    <AllergenDisplay allergens={allergens} />
+                                </div>
+                            )}
                              {ingredients.length > 0 && (
                                 <div>
                                     <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 mt-3">{t('form.ingredients.ingredientsList')}:</h4>
@@ -424,7 +611,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
             <button
               type="submit"
               className="w-full sm:flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md transition-colors text-lg disabled:bg-green-400 dark:disabled:bg-gray-600"
-              disabled={isLoading || isIngredientsLoading || !name || rating === 0}
+              disabled={isLoading || analysisProgress.active || isIngredientsLoading || !name || rating === 0}
             >
               <PlusCircleIcon className="w-6 h-6" />
               {isEditing ? t('form.button.update') : t('form.button.save')}
@@ -433,6 +620,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
       </form>
 
       {isCameraOpen && <CameraCapture onCapture={handleImageFromCamera} onClose={() => setIsCameraOpen(false)} />}
+      {isBarcodeScannerOpen && <BarcodeScanner onScan={handleBarcodeScanned} onClose={() => setIsBarcodeScannerOpen(false)} />}
       {isCropperOpen && uncroppedImage && <ImageCropper imageUrl={uncroppedImage} suggestedCrop={suggestedCrop} onCrop={handleCropComplete} onCancel={handleCropCancel} />}
     </>
   );

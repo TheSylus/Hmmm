@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import ReactCrop, { type Crop, centerCrop, makeAspectCrop } from 'react-image-crop';
 import { BoundingBox } from '../services/geminiService';
-import { useTranslation } from '../i18n';
+import { useTranslation } from '../i18n/index';
 
 interface ImageCropperProps {
   imageUrl: string;

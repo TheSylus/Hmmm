@@ -3,14 +3,20 @@ import React, { createContext, useState, useEffect, useContext, ReactNode } from
 interface AppSettingsContextType {
   isAiEnabled: boolean;
   setIsAiEnabled: (enabled: boolean) => void;
+  isBarcodeScannerEnabled: boolean;
+  setIsBarcodeScannerEnabled: (enabled: boolean) => void;
 }
 
 const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);
 
 export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isAiEnabled, setIsAiEnabledState] = useState<boolean>(() => {
-    // Check for saved setting in localStorage, otherwise default to true (enabled)
     const savedSetting = localStorage.getItem('isAiEnabled');
+    return savedSetting ? JSON.parse(savedSetting) : true;
+  });
+  
+  const [isBarcodeScannerEnabled, setIsBarcodeScannerEnabledState] = useState<boolean>(() => {
+    const savedSetting = localStorage.getItem('isBarcodeScannerEnabled');
     return savedSetting ? JSON.parse(savedSetting) : true;
   });
 
@@ -18,8 +24,13 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
     setIsAiEnabledState(enabled);
     localStorage.setItem('isAiEnabled', JSON.stringify(enabled));
   };
+  
+  const setIsBarcodeScannerEnabled = (enabled: boolean) => {
+    setIsBarcodeScannerEnabledState(enabled);
+    localStorage.setItem('isBarcodeScannerEnabled', JSON.stringify(enabled));
+  };
 
-  const value = { isAiEnabled, setIsAiEnabled };
+  const value = { isAiEnabled, setIsAiEnabled, isBarcodeScannerEnabled, setIsBarcodeScannerEnabled };
 
   return React.createElement(AppSettingsContext.Provider, { value }, children);
 };

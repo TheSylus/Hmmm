@@ -1,7 +1,8 @@
 import React from 'react';
 import { FoodItem, NutriScore } from '../types';
 import { StarIcon, TrashIcon, PencilIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon } from './Icons';
-import { useTranslation } from '../i18n';
+import { AllergenDisplay } from './AllergenDisplay';
+import { useTranslation } from '../i18n/index';
 import { useTranslatedItem } from '../hooks/useTranslatedItem';
 
 interface FoodItemCardProps {
@@ -26,6 +27,9 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
   if (!displayItem) {
     return null; // Render nothing if the item is not available
   }
+  
+  const hasDietaryOrAllergens = displayItem.isLactoseFree || displayItem.isVegan || displayItem.isGlutenFree || (displayItem.allergens && displayItem.allergens.length > 0);
+  const hasTags = displayItem.tags && displayItem.tags.length > 0;
 
   const DietaryIcon: React.FC<{ type: 'lactoseFree' | 'vegan' | 'glutenFree', className?: string }> = ({ type, className }) => {
       const icons = {
@@ -49,7 +53,7 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md dark:shadow-lg flex flex-col p-4 gap-4 transition-all duration-300 hover:shadow-xl dark:hover:shadow-2xl hover:-translate-y-1 relative">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md dark:shadow-lg flex flex-col p-4 transition-all duration-300 hover:shadow-xl dark:hover:shadow-2xl hover:-translate-y-1 relative">
         <div className="flex items-start gap-4">
             {/* Image Thumbnail */}
             {displayItem.image && (
@@ -61,10 +65,8 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
                 </div>
             )}
 
-            {/* Details Section */}
-            <div className="flex-1 flex flex-col justify-between self-stretch overflow-hidden">
-                {/* Top part: Name, Rating, Notes */}
-                <div className="flex-1">
+            {/* Core Details Section */}
+            <div className="flex-1 flex flex-col justify-start self-stretch overflow-hidden">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white truncate pr-20" title={displayItem.name}>{displayItem.name}</h3>
                 
                 <div className="flex items-center my-1.5">
@@ -72,37 +74,42 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
                         <StarIcon key={star} className={`w-5 h-5 ${displayItem.rating >= star ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`} filled={displayItem.rating >= star} />
                     ))}
                     
-                    <div className="ml-3 flex items-center gap-2">
-                        {displayItem.nutriScore && (
-                            <div className={`text-xs w-6 h-6 rounded-full text-white font-bold flex items-center justify-center flex-shrink-0 ${nutriScoreColors[displayItem.nutriScore]}`}>
-                            {displayItem.nutriScore}
-                            </div>
-                        )}
-                         <div className="flex items-center gap-1.5">
+                    {displayItem.nutriScore && (
+                        <div className={`ml-3 text-xs w-6 h-6 rounded-full text-white font-bold flex items-center justify-center flex-shrink-0 ${nutriScoreColors[displayItem.nutriScore]}`}>
+                        {displayItem.nutriScore}
+                        </div>
+                    )}
+                </div>
+                
+                <div className="mt-1.5 space-y-2">
+                    {hasDietaryOrAllergens && (
+                         <div className="flex items-center gap-2 flex-wrap">
                             {displayItem.isLactoseFree && <DietaryIcon type="lactoseFree" className="w-6 h-6" />}
                             {displayItem.isVegan && <DietaryIcon type="vegan" className="w-6 h-6" />}
                             {displayItem.isGlutenFree && <DietaryIcon type="glutenFree" className="w-6 h-6" />}
+                            {displayItem.allergens && displayItem.allergens.length > 0 && <AllergenDisplay allergens={displayItem.allergens} />}
                         </div>
-                    </div>
-                </div>
+                    )}
 
-                {displayItem.notes && (
-                    <p className="text-gray-600 dark:text-gray-400 text-sm max-h-10 overflow-hidden leading-tight">{displayItem.notes}</p>
-                )}
+                    {hasTags && (
+                        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                            {displayItem.tags!.map(tag => (
+                            <span key={tag} className="flex-shrink-0 bg-indigo-100 text-indigo-800 dark:bg-indigo-600 dark:text-indigo-100 text-xs font-semibold px-2 py-1 rounded-full">
+                                {tag}
+                            </span>
+                            ))}
+                        </div>
+                    )}
                 </div>
-
-                {/* Bottom part: Horizontally Scrolling Tags */}
-                {displayItem.tags && displayItem.tags.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto pt-2 mt-auto scrollbar-hide">
-                    {displayItem.tags.map(tag => (
-                    <span key={tag} className="flex-shrink-0 bg-indigo-100 text-indigo-800 dark:bg-indigo-600 dark:text-indigo-100 text-xs font-semibold px-2 py-1 rounded-full">
-                        {tag}
-                    </span>
-                    ))}
-                </div>
-                )}
             </div>
         </div>
+        
+        {/* Notes Section */}
+        {displayItem.notes && (
+            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700/50">
+                <p className="text-gray-600 dark:text-gray-400 text-sm leading-tight">{displayItem.notes}</p>
+            </div>
+        )}
 
       {/* Action Buttons */}
       <div className="absolute top-2 right-2 flex items-center gap-1 z-10">

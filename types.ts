@@ -9,6 +9,7 @@ export interface FoodItem {
   nutriScore?: NutriScore;
   tags?: string[];
   ingredients?: string[];
+  allergens?: string[];
   isLactoseFree?: boolean;
   isVegan?: boolean;
   isGlutenFree?: boolean;

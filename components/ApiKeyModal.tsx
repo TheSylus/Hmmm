@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTranslation } from '../i18n';
+import { useTranslation } from '../i18n/index';
 import { ApiKeyTester } from './ApiKeyTester';
 
 interface ApiKeyModalProps {
@@ -8,14 +8,6 @@ interface ApiKeyModalProps {
 
 export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onKeySave }) => {
     const { t } = useTranslation();
-
-    // A dummy key to allow users to bypass the modal for manual entry.
-    // This will be saved to localStorage and the main app will load.
-    // The Gemini service will still fail if AI features are used,
-    // but the user can then add a real key in settings.
-    const handleManualBypass = () => {
-        onKeySave('MANUAL_ENTRY_MODE');
-    };
 
     return (
         <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 flex items-center justify-center z-50 p-4">
@@ -41,15 +33,6 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onKeySave }) => {
                     >
                         {t('apiKeyModal.link.whereToGet')}
                     </a>
-                </div>
-
-                <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
-                    <button 
-                        onClick={handleManualBypass}
-                        className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white text-sm hover:underline"
-                    >
-                        {t('apiKeyModal.manualEntry')}
-                    </button>
                 </div>
             </div>
         </div>

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { XMarkIcon } from './Icons';
-import { useTranslation } from '../i18n';
+import { useTranslation } from '../i18n/index';
 
 interface ImageModalProps {
   imageUrl: string;

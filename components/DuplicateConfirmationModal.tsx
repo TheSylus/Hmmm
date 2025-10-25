@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FoodItem } from '../types';
 import { FoodItemCard } from './FoodItemCard';
-import { useTranslation } from '../i18n';
+import { useTranslation } from '../i18n/index';
 import { translateTexts } from '../services/translationService';
 
 interface DuplicateConfirmationModalProps {

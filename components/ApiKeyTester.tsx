@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { GoogleGenAI } from '@google/genai';
-import { useTranslation } from '../i18n';
+import { useTranslation } from '../i18n/index';
 import { SparklesIcon } from './Icons';
 
 interface ApiKeyTesterProps {
