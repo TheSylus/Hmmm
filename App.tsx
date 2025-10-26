@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { FoodItem } from './types';
 import { FoodItemForm } from './components/FoodItemForm';
 import { FoodItemList } from './components/FoodItemList';
+import { FoodItemCard } from './components/FoodItemCard';
 import { DuplicateConfirmationModal } from './components/DuplicateConfirmationModal';
 import { ImageModal } from './components/ImageModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -41,11 +42,29 @@ const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   const [isBannerVisible, setIsBannerVisible] = useState(false);
+  const [sharedItemToShow, setSharedItemToShow] = useState<Omit<FoodItem, 'id'> | null>(null);
   
   useEffect(() => {
     // Show banner if key is missing and it hasn't been dismissed this session
     if (!hasValidApiKey() && sessionStorage.getItem('apiKeyBannerDismissed') !== 'true') {
       setIsBannerVisible(true);
+    }
+
+    // Check for shared item data in URL
+    const params = new URLSearchParams(window.location.search);
+    const shareData = params.get('share');
+    if (shareData) {
+      try {
+        const jsonString = decodeURIComponent(escape(atob(shareData)));
+        const decodedItem: FoodItem = JSON.parse(jsonString);
+        // Remove id to treat it as a new item. The rest of the data is preserved.
+        const { id, ...itemData } = decodedItem;
+        setSharedItemToShow(itemData);
+      } catch (error) {
+        console.error("Failed to parse shared item data from URL:", error);
+      }
+      // Clean the URL so the modal doesn't reappear on refresh
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
   
@@ -97,6 +116,14 @@ const App: React.FC = () => {
       };
       setFoodItems(prevItems => [newItem, ...prevItems]);
       handleCancelForm();
+    }
+  };
+
+  const handleAddSharedItem = () => {
+    if (sharedItemToShow) {
+      // Re-use the main save logic to handle duplicate checks as well
+      handleSaveItem(sharedItemToShow);
+      setSharedItemToShow(null); // This will close the shared item modal and the duplicate modal if it appears
     }
   };
 
@@ -269,6 +296,54 @@ const App: React.FC = () => {
           onCancel={handleCancelDuplicateAdd}
           onImageClick={setSelectedImage}
         />
+      )}
+
+      {sharedItemToShow && (
+        <div 
+            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 animate-fade-in" 
+            onClick={() => setSharedItemToShow(null)}
+            role="dialog"
+            aria-modal="true"
+        >
+            <div className="relative bg-white dark:bg-gray-900 p-6 rounded-lg shadow-2xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('modal.shared.title')}</h2>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">{t('modal.shared.description')}</p>
+                
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
+                    <FoodItemCard
+                        item={{ ...sharedItemToShow, id: 'shared-item-preview' }}
+                        onDelete={() => {}}
+                        onEdit={() => {}}
+                        onImageClick={setSelectedImage}
+                        isPreview={true}
+                    />
+                </div>
+
+                <div className="mt-6 flex flex-col sm:flex-row justify-end gap-4 border-t border-gray-200 dark:border-gray-700 pt-6">
+                <button
+                    onClick={() => setSharedItemToShow(null)}
+                    className="w-full sm:w-auto px-6 py-2 bg-gray-500 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-700 text-white rounded-md font-semibold transition-colors"
+                >
+                    {t('modal.shared.close')}
+                </button>
+                <button
+                    onClick={handleAddSharedItem}
+                    className="w-full sm:w-auto px-8 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 transition-colors"
+                >
+                    {t('modal.shared.addToList')}
+                </button>
+                </div>
+            </div>
+             <style>{`
+                @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+                }
+                .animate-fade-in {
+                animation: fadeIn 0.2s ease-out;
+                }
+            `}</style>
+        </div>
       )}
 
       {selectedImage && (

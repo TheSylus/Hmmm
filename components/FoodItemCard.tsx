@@ -10,6 +10,7 @@ interface FoodItemCardProps {
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
   onImageClick: (imageUrl: string) => void;
+  isPreview?: boolean;
 }
 
 const nutriScoreColors: Record<NutriScore, string> = {
@@ -20,39 +21,43 @@ const nutriScoreColors: Record<NutriScore, string> = {
   E: 'bg-red-600',
 };
 
-export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEdit, onImageClick }) => {
+export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEdit, onImageClick, isPreview = false }) => {
   const { t } = useTranslation();
   const displayItem = useTranslatedItem(item);
 
   const handleShare = async () => {
-    if (!displayItem) return;
-
-    const ratingStars = '★'.repeat(displayItem.rating) + '☆'.repeat(5 - displayItem.rating);
-    
-    let shareText = `${t('share.text.rating')}: ${ratingStars}\n\n`;
-    if(displayItem.notes) {
-      shareText += `${t('share.text.notes')}:\n${displayItem.notes}\n\n`;
-    }
-    if(displayItem.tags && displayItem.tags.length > 0) {
-      shareText += `${t('share.text.tags')}: ${displayItem.tags.join(', ')}\n\n`;
-    }
-    shareText += t('share.text.checkOut');
-
-    const shareData = {
-      title: t('share.title', { name: displayItem.name }),
-      text: shareText,
-      url: window.location.href,
-    };
+    if (!item || !displayItem) return;
 
     try {
+      // Use the original `item` for serialization to ensure untranslated data is shared.
+      // Use encodeURIComponent to handle special characters before base64 encoding.
+      const jsonString = JSON.stringify(item);
+      const serializedItem = btoa(unescape(encodeURIComponent(jsonString)));
+      const shareUrl = `${window.location.origin}${window.location.pathname}?share=${serializedItem}`;
+
+      // Use the translated `displayItem` for the preview text in the share dialog.
+      const ratingStars = '★'.repeat(displayItem.rating) + '☆'.repeat(5 - displayItem.rating);
+      let shareText = `${t('share.text.rating')}: ${ratingStars}\n\n`;
+      if (displayItem.notes) {
+        shareText += `${t('share.text.notes')}:\n${displayItem.notes}\n\n`;
+      }
+      if (displayItem.tags && displayItem.tags.length > 0) {
+        shareText += `${t('share.text.tags')}: ${displayItem.tags.join(', ')}\n\n`;
+      }
+      shareText += t('share.text.checkOut');
+
+      const shareData = {
+        title: t('share.title', { name: displayItem.name }),
+        text: shareText,
+        url: shareUrl,
+      };
+
       if (navigator.share) {
         await navigator.share(shareData);
       } else {
-        // Fallback for browsers that don't support Web Share API
         alert("Sharing is not supported on this browser.");
       }
     } catch (err) {
-      // The user cancelled the share operation, which is not an error.
       if (err instanceof DOMException && err.name === 'AbortError') {
         console.log('Share cancelled by user.');
       } else {
@@ -104,7 +109,7 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
 
             {/* Core Details Section */}
             <div className="flex-1 flex flex-col justify-start self-stretch overflow-hidden">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white truncate pr-20" title={displayItem.name}>{displayItem.name}</h3>
+                <h3 className={`text-lg font-bold text-gray-900 dark:text-white truncate ${isPreview ? '' : 'pr-20'}`} title={displayItem.name}>{displayItem.name}</h3>
                 
                 <div className="flex items-center my-1.5">
                     {[1, 2, 3, 4, 5].map(star => (
@@ -149,31 +154,33 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
         )}
 
       {/* Action Buttons */}
-      <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
-          {navigator.share && (
+      {!isPreview && (
+        <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
+            {navigator.share && (
+              <button
+                  onClick={(e) => { e.stopPropagation(); handleShare(); }}
+                  className="text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
+                  aria-label={t('card.shareAria', { name: displayItem.name })}
+              >
+                  <ShareIcon className="w-5 h-5" />
+              </button>
+            )}
             <button
-                onClick={(e) => { e.stopPropagation(); handleShare(); }}
-                className="text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
-                aria-label={t('card.shareAria', { name: displayItem.name })}
+              onClick={(e) => { e.stopPropagation(); onEdit(item.id); }}
+              className="text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
+              aria-label={t('card.editAria', { name: displayItem.name })}
             >
-                <ShareIcon className="w-5 h-5" />
+              <PencilIcon className="w-5 h-5" />
             </button>
-          )}
-          <button
-            onClick={(e) => { e.stopPropagation(); onEdit(item.id); }}
-            className="text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
-            aria-label={t('card.editAria', { name: displayItem.name })}
-          >
-            <PencilIcon className="w-5 h-5" />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
-            className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
-            aria-label={t('card.deleteAria', { name: displayItem.name })}
-          >
-            <TrashIcon className="w-5 h-5" />
-          </button>
-      </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
+              className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
+              aria-label={t('card.deleteAria', { name: displayItem.name })}
+            >
+              <TrashIcon className="w-5 h-5" />
+            </button>
+        </div>
+      )}
 
 
       {/* Custom scrollbar styling */}
