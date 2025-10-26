@@ -21,6 +21,27 @@ const nutriScoreColors: Record<NutriScore, string> = {
   E: 'bg-red-600',
 };
 
+// Helper function to compress data and encode it to a URL-safe Base64 string
+const compressAndEncode = async (data: object): Promise<string> => {
+  const jsonString = JSON.stringify(data);
+  // Use the CompressionStream API to gzip the data
+  const stream = new Blob([jsonString]).stream().pipeThrough(new CompressionStream('gzip'));
+  const compressed = await new Response(stream).arrayBuffer();
+  
+  // Convert the compressed ArrayBuffer to a binary string
+  const bytes = new Uint8Array(compressed);
+  let binaryString = '';
+  bytes.forEach((byte) => {
+    binaryString += String.fromCharCode(byte);
+  });
+  
+  // Encode the binary string to Base64 and make it URL-safe
+  return btoa(binaryString)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+};
+
 export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEdit, onImageClick, isPreview = false }) => {
   const { t } = useTranslation();
   const displayItem = useTranslatedItem(item);
@@ -52,17 +73,13 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
         }
       });
       
-      const jsonString = JSON.stringify(minified);
-      
-      const utf8Bytes = new TextEncoder().encode(jsonString);
-      let binaryString = '';
-      for (let i = 0; i < utf8Bytes.length; i++) {
-        binaryString += String.fromCharCode(utf8Bytes[i]);
-      }
-      const serializedItem = btoa(binaryString);
+      const serializedItem = await compressAndEncode(minified);
 
-      // Use a shorter query param 's' for 'share'
+      // The long, functional URL for the share payload
       const shareUrl = `${window.location.origin}${window.location.pathname}?s=${serializedItem}`;
+
+      // The short, clean URL for visual display in the message text
+      const cleanAppUrl = `${window.location.origin}${window.location.pathname}`;
 
       const ratingStars = '★'.repeat(displayItem.rating) + '☆'.repeat(5 - displayItem.rating);
       let shareText = `${t('share.text.rating')}: ${ratingStars}\n\n`;
@@ -72,12 +89,13 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
       if (displayItem.tags && displayItem.tags.length > 0) {
         shareText += `${t('share.text.tags')}: ${displayItem.tags.join(', ')}\n\n`;
       }
-      shareText += t('share.text.checkOut');
+      shareText += t('share.text.checkOut', { appUrl: cleanAppUrl });
+
 
       const shareData = {
         title: t('share.title', { name: displayItem.name }),
-        text: shareText,
-        url: shareUrl,
+        text: shareText, // This text contains the clean URL for visual purposes
+        url: shareUrl,    // This URL is the functional one for the rich preview and click action
       };
 
       if (navigator.share) {

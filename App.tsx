@@ -15,6 +15,30 @@ const hasValidApiKey = () => {
     return key && key !== 'MANUAL_ENTRY_MODE';
 };
 
+// Helper function to decode from URL-safe Base64 and decompress the data
+const decodeAndDecompress = async (base64UrlString: string): Promise<any> => {
+  // Convert URL-safe Base64 back to standard Base64
+  let base64 = base64UrlString.replace(/-/g, '+').replace(/_/g, '/');
+  // Add padding if necessary
+  while (base64.length % 4) {
+    base64 += '=';
+  }
+  
+  // Decode from Base64 to a binary string
+  const binaryString = atob(base64);
+  // Convert the binary string to a Uint8Array
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  // Use the DecompressionStream API to gunzip the data
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  const decompressed = await new Response(stream).text();
+  // Parse the resulting JSON string
+  return JSON.parse(decompressed);
+};
+
+
 const App: React.FC = () => {
   const { t } = useTranslation();
   // This state now primarily tracks if a key exists to conditionally render AI features
@@ -54,34 +78,31 @@ const App: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     const shareData = params.get('s'); // 's' for 'share' (shortened)
     if (shareData) {
-      try {
-        const binaryString = atob(shareData);
-        const utf8Bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          utf8Bytes[i] = binaryString.charCodeAt(i);
-        }
-        const jsonString = new TextDecoder().decode(utf8Bytes);
-        
-        const minified = JSON.parse(jsonString);
+      const processShareData = async () => {
+        try {
+            const minified = await decodeAndDecompress(shareData);
 
-        // Reconstruct the FoodItem from the minified object
-        const reconstructedItem: Omit<FoodItem, 'id'> = {
-            name: minified.n || '',
-            rating: minified.r || 0,
-            notes: minified.no,
-            nutriScore: minified.ns,
-            tags: minified.t,
-            ingredients: minified.i,
-            allergens: minified.a,
-            isLactoseFree: !!minified.lf,
-            isVegan: !!minified.v,
-            isGlutenFree: !!minified.gf,
-        };
-        
-        setSharedItemToShow(reconstructedItem);
-      } catch (error) {
-        console.error("Failed to parse shared item data from URL:", error);
-      }
+            // Reconstruct the FoodItem from the minified object
+            const reconstructedItem: Omit<FoodItem, 'id'> = {
+                name: minified.n || '',
+                rating: minified.r || 0,
+                notes: minified.no,
+                nutriScore: minified.ns,
+                tags: minified.t,
+                ingredients: minified.i,
+                allergens: minified.a,
+                isLactoseFree: !!minified.lf,
+                isVegan: !!minified.v,
+                isGlutenFree: !!minified.gf,
+            };
+            
+            setSharedItemToShow(reconstructedItem);
+        } catch (error) {
+            console.error("Failed to parse shared item data from URL:", error);
+        }
+      };
+
+      processShareData();
       // Clean the URL so the modal doesn't reappear on refresh
       window.history.replaceState({}, document.title, window.location.pathname);
     }
