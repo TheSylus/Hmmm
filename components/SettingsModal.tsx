@@ -18,7 +18,7 @@ const maskApiKey = (key: string) => {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onKeyUpdate }) => {
   const { t, language, setLanguage } = useTranslation();
   const { theme, setTheme } = useTheme();
-  const { isAiEnabled, setIsAiEnabled, isBarcodeScannerEnabled, setIsBarcodeScannerEnabled } = useAppSettings();
+  const { isAiEnabled, setIsAiEnabled, isBarcodeScannerEnabled, setIsBarcodeScannerEnabled, isOffSearchEnabled, setIsOffSearchEnabled } = useAppSettings();
   const [currentKey, setCurrentKey] = useState<string | null>(null);
   const [isEditingKey, setIsEditingKey] = useState(false);
 
@@ -94,6 +94,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onKeyUpda
             </div>
 
             <hr className="border-gray-200 dark:border-gray-700" />
+
+            {/* Food Database Search Toggle */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">{t('settings.offSearch.title')}</h3>
+              <label htmlFor="off-search-toggle" className="flex items-center justify-between bg-gray-100 dark:bg-gray-900/50 p-3 rounded-lg cursor-pointer">
+                <span className="text-sm text-gray-600 dark:text-gray-400 max-w-[75%] pr-2">{t('settings.offSearch.description')}</span>
+                <div className="relative">
+                  <input
+                    id="off-search-toggle"
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={isOffSearchEnabled}
+                    onChange={() => setIsOffSearchEnabled(!isOffSearchEnabled)}
+                  />
+                  <div className="w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-indigo-600"></div>
+                </div>
+              </label>
+            </div>
             
             {/* Barcode Scanner Toggle */}
             <div>

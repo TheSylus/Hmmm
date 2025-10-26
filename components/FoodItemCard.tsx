@@ -1,6 +1,6 @@
 import React from 'react';
 import { FoodItem, NutriScore } from '../types';
-import { StarIcon, TrashIcon, PencilIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon } from './Icons';
+import { StarIcon, TrashIcon, PencilIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon, ShareIcon } from './Icons';
 import { AllergenDisplay } from './AllergenDisplay';
 import { useTranslation } from '../i18n/index';
 import { useTranslatedItem } from '../hooks/useTranslatedItem';
@@ -23,6 +23,43 @@ const nutriScoreColors: Record<NutriScore, string> = {
 export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEdit, onImageClick }) => {
   const { t } = useTranslation();
   const displayItem = useTranslatedItem(item);
+
+  const handleShare = async () => {
+    if (!displayItem) return;
+
+    const ratingStars = '★'.repeat(displayItem.rating) + '☆'.repeat(5 - displayItem.rating);
+    
+    let shareText = `${t('share.text.rating')}: ${ratingStars}\n\n`;
+    if(displayItem.notes) {
+      shareText += `${t('share.text.notes')}:\n${displayItem.notes}\n\n`;
+    }
+    if(displayItem.tags && displayItem.tags.length > 0) {
+      shareText += `${t('share.text.tags')}: ${displayItem.tags.join(', ')}\n\n`;
+    }
+    shareText += t('share.text.checkOut');
+
+    const shareData = {
+      title: t('share.title', { name: displayItem.name }),
+      text: shareText,
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        // Fallback for browsers that don't support Web Share API
+        alert("Sharing is not supported on this browser.");
+      }
+    } catch (err) {
+      // The user cancelled the share operation, which is not an error.
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        console.log('Share cancelled by user.');
+      } else {
+        console.error('Share failed:', err);
+      }
+    }
+  };
 
   if (!displayItem) {
     return null; // Render nothing if the item is not available
@@ -113,6 +150,15 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
 
       {/* Action Buttons */}
       <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
+          {navigator.share && (
+            <button
+                onClick={(e) => { e.stopPropagation(); handleShare(); }}
+                className="text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
+                aria-label={t('card.shareAria', { name: displayItem.name })}
+            >
+                <ShareIcon className="w-5 h-5" />
+            </button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(item.id); }}
             className="text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"

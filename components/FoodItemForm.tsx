@@ -33,7 +33,7 @@ const nutriScoreColors: Record<NutriScore, string> = {
 
 export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel, initialData }) => {
   const { t, language } = useTranslation();
-  const { isAiEnabled, isBarcodeScannerEnabled } = useAppSettings();
+  const { isAiEnabled, isBarcodeScannerEnabled, isOffSearchEnabled } = useAppSettings();
   
   const isEditing = !!initialData;
   const isAiAvailable = isAiEnabled && hasValidApiKey();
@@ -125,8 +125,14 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   
   const handleBarcodeScanned = async (barcode: string) => {
     setIsBarcodeScannerOpen(false);
-    setIsLoading(true);
     setError(null);
+
+    if (!isOffSearchEnabled) {
+      setError(t('form.error.offSearchDisabled'));
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const productData = await fetchProductFromOpenFoodFacts(barcode);
       
@@ -190,7 +196,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
             t('form.aiProgress.readingName'),
             t('form.aiProgress.findingScore'),
             t('form.aiProgress.generatingTags'),
-            t('form.aiProgress.searchingDatabase'),
+            ...(isOffSearchEnabled ? [t('form.aiProgress.searchingDatabase')] : []),
             t('form.aiProgress.locatingProduct')
         ];
         setAnalysisProgress({ active: true, message: progressMessages[0] });
@@ -205,7 +211,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
         
         // Step 2: Fetch supplementary data from Open Food Facts
         let offResult: Partial<FoodItem> = {};
-        if (aiResult.name) {
+        if (aiResult.name && isOffSearchEnabled) {
             try {
                 setAnalysisProgress(prev => ({ ...prev, message: t('form.aiProgress.searchingDatabase') }));
                 offResult = await searchProductByNameFromOpenFoodFacts(aiResult.name);

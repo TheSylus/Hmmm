@@ -5,6 +5,8 @@ interface AppSettingsContextType {
   setIsAiEnabled: (enabled: boolean) => void;
   isBarcodeScannerEnabled: boolean;
   setIsBarcodeScannerEnabled: (enabled: boolean) => void;
+  isOffSearchEnabled: boolean;
+  setIsOffSearchEnabled: (enabled: boolean) => void;
 }
 
 const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);
@@ -20,6 +22,12 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
     return savedSetting ? JSON.parse(savedSetting) : true;
   });
 
+  const [isOffSearchEnabled, setIsOffSearchEnabledState] = useState<boolean>(() => {
+    const savedSetting = localStorage.getItem('isOffSearchEnabled');
+    // Default to true
+    return savedSetting !== null ? JSON.parse(savedSetting) : true;
+  });
+
   const setIsAiEnabled = (enabled: boolean) => {
     setIsAiEnabledState(enabled);
     localStorage.setItem('isAiEnabled', JSON.stringify(enabled));
@@ -29,8 +37,13 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
     setIsBarcodeScannerEnabledState(enabled);
     localStorage.setItem('isBarcodeScannerEnabled', JSON.stringify(enabled));
   };
+  
+  const setIsOffSearchEnabled = (enabled: boolean) => {
+    setIsOffSearchEnabledState(enabled);
+    localStorage.setItem('isOffSearchEnabled', JSON.stringify(enabled));
+  };
 
-  const value = { isAiEnabled, setIsAiEnabled, isBarcodeScannerEnabled, setIsBarcodeScannerEnabled };
+  const value = { isAiEnabled, setIsAiEnabled, isBarcodeScannerEnabled, setIsBarcodeScannerEnabled, isOffSearchEnabled, setIsOffSearchEnabled };
 
   return React.createElement(AppSettingsContext.Provider, { value }, children);
 };
