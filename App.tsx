@@ -55,7 +55,14 @@ const App: React.FC = () => {
     const shareData = params.get('share');
     if (shareData) {
       try {
-        const jsonString = decodeURIComponent(escape(atob(shareData)));
+        // Robustly decode the Base64 string to a UTF-8 string
+        const binaryString = atob(shareData);
+        const utf8Bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          utf8Bytes[i] = binaryString.charCodeAt(i);
+        }
+        const jsonString = new TextDecoder().decode(utf8Bytes);
+        
         const decodedItem: FoodItem = JSON.parse(jsonString);
         // Remove id to treat it as a new item. The rest of the data is preserved.
         const { id, ...itemData } = decodedItem;
@@ -147,7 +154,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteItem = (id: string) => {
-    setFoodItems(prevItems => prevItems.filter(item => item.id !== id));
+    setFoodItems(prevItems => prevItems.filter(item => item.id === id));
   };
   
   const handleConfirmDuplicateAdd = () => {

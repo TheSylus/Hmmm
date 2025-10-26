@@ -30,9 +30,16 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
 
     try {
       // Use the original `item` for serialization to ensure untranslated data is shared.
-      // Use encodeURIComponent to handle special characters before base64 encoding.
       const jsonString = JSON.stringify(item);
-      const serializedItem = btoa(unescape(encodeURIComponent(jsonString)));
+      
+      // Robustly encode the UTF-8 string to Base64, replacing the old, buggy method.
+      const utf8Bytes = new TextEncoder().encode(jsonString);
+      let binaryString = '';
+      for (let i = 0; i < utf8Bytes.length; i++) {
+        binaryString += String.fromCharCode(utf8Bytes[i]);
+      }
+      const serializedItem = btoa(binaryString);
+
       const shareUrl = `${window.location.origin}${window.location.pathname}?share=${serializedItem}`;
 
       // Use the translated `displayItem` for the preview text in the share dialog.
