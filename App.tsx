@@ -154,7 +154,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteItem = (id: string) => {
-    setFoodItems(prevItems => prevItems.filter(item => item.id === id));
+    setFoodItems(prevItems => prevItems.filter(item => item.id !== id));
   };
   
   const handleConfirmDuplicateAdd = () => {

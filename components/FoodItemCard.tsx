@@ -29,8 +29,9 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
     if (!item || !displayItem) return;
 
     try {
-      // Use the original `item` for serialization to ensure untranslated data is shared.
-      const jsonString = JSON.stringify(item);
+      // Create a copy of the item without the image for sharing, to keep the URL short.
+      const { image, ...itemToShare } = item;
+      const jsonString = JSON.stringify(itemToShare);
       
       // Robustly encode the UTF-8 string to Base64, replacing the old, buggy method.
       const utf8Bytes = new TextEncoder().encode(jsonString);
