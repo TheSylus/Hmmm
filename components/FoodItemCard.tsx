@@ -78,9 +78,6 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
       // The long, functional URL for the share payload
       const shareUrl = `${window.location.origin}${window.location.pathname}?s=${serializedItem}`;
 
-      // The short, clean URL for visual display in the message text
-      const cleanAppUrl = `${window.location.origin}${window.location.pathname}`;
-
       const ratingStars = '★'.repeat(displayItem.rating) + '☆'.repeat(5 - displayItem.rating);
       let shareText = `${t('share.text.rating')}: ${ratingStars}\n\n`;
       if (displayItem.notes) {
@@ -89,12 +86,12 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
       if (displayItem.tags && displayItem.tags.length > 0) {
         shareText += `${t('share.text.tags')}: ${displayItem.tags.join(', ')}\n\n`;
       }
-      shareText += t('share.text.checkOut', { appUrl: cleanAppUrl });
+      shareText += t('share.text.checkOut');
 
 
       const shareData = {
         title: t('share.title', { name: displayItem.name }),
-        text: shareText, // This text contains the clean URL for visual purposes
+        text: shareText, // This text no longer contains a URL
         url: shareUrl,    // This URL is the functional one for the rich preview and click action
       };
 
