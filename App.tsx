@@ -2,11 +2,11 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { FoodItem } from './types';
 import { FoodItemForm } from './components/FoodItemForm';
 import { FoodItemList } from './components/FoodItemList';
-import { FoodItemCard } from './components/FoodItemCard';
 import { DuplicateConfirmationModal } from './components/DuplicateConfirmationModal';
 import { ImageModal } from './components/ImageModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ApiKeyBanner } from './components/ApiKeyBanner';
+import { SharedItemDetailView } from './components/SharedItemDetailView';
 import { useTranslation } from './i18n/index';
 import { PlusCircleIcon, SettingsIcon } from './components/Icons';
 
@@ -324,17 +324,14 @@ const App: React.FC = () => {
             role="dialog"
             aria-modal="true"
         >
-            <div className="relative bg-white dark:bg-gray-900 p-6 rounded-lg shadow-2xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="relative bg-white dark:bg-gray-900 p-6 rounded-lg shadow-2xl max-w-lg w-full flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('modal.shared.title')}</h2>
                 <p className="text-gray-600 dark:text-gray-400 mb-4">{t('modal.shared.description')}</p>
                 
-                <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
-                    <FoodItemCard
-                        item={{ ...sharedItemToShow, id: 'shared-item-preview' }}
-                        onDelete={() => {}}
-                        onEdit={() => {}}
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 flex-1 overflow-y-auto">
+                    <SharedItemDetailView
+                        item={sharedItemToShow}
                         onImageClick={setSelectedImage}
-                        isPreview={true}
                     />
                 </div>
 

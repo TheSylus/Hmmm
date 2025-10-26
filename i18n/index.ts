@@ -123,7 +123,12 @@ const enTranslations = {
   "allergen.soy": "Contains Soy",
   "allergen.eggs": "Contains Eggs",
   "allergen.fish": "Contains Fish",
-  "allergen.shellfish": "Contains Shellfish"
+  "allergen.shellfish": "Contains Shellfish",
+  "detail.notesTitle": "Notes",
+  "detail.tagsTitle": "Tags",
+  "detail.ingredientsTitle": "Ingredients",
+  "detail.allergensTitle": "Allergens",
+  "detail.dietaryTitle": "Dietary Information"
 };
 
 const deTranslations = {
@@ -249,7 +254,12 @@ const deTranslations = {
   "allergen.soy": "Enthält Soja",
   "allergen.eggs": "Enthält Eier",
   "allergen.fish": "Enthält Fisch",
-  "allergen.shellfish": "Enthält Schalentiere"
+  "allergen.shellfish": "Enthält Schalentiere",
+  "detail.notesTitle": "Notizen",
+  "detail.tagsTitle": "Tags",
+  "detail.ingredientsTitle": "Zutaten",
+  "detail.allergensTitle": "Allergene",
+  "detail.dietaryTitle": "Ernährungsinformation"
 };
 
 // Type for the translation function
