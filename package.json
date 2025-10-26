@@ -14,7 +14,7 @@
     "@google/genai": "^1.26.0",
     "react-image-crop": "^11.0.10",
     "@zxing/library": "^0.21.0",
-    "react-zxing": "^2.1.2"
+    "react-zxing": "^2.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
