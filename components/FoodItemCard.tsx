@@ -29,11 +29,31 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
     if (!item || !displayItem) return;
 
     try {
-      // Create a copy of the item without the image for sharing, to keep the URL short.
-      const { image, ...itemToShare } = item;
-      const jsonString = JSON.stringify(itemToShare);
+      // Create a minified object for sharing to keep the URL short.
+      const { id, image, ...dataToShare } = item;
+      const minified = {
+        n: dataToShare.name,
+        r: dataToShare.rating,
+        no: dataToShare.notes,
+        ns: dataToShare.nutriScore,
+        t: dataToShare.tags,
+        i: dataToShare.ingredients,
+        a: dataToShare.allergens,
+        lf: dataToShare.isLactoseFree,
+        v: dataToShare.isVegan,
+        gf: dataToShare.isGlutenFree,
+      };
       
-      // Robustly encode the UTF-8 string to Base64, replacing the old, buggy method.
+      // Clean up undefined/null values and empty arrays to make the JSON string even smaller
+      Object.keys(minified).forEach((key) => {
+        const k = key as keyof typeof minified;
+        if (minified[k] === undefined || minified[k] === null || (Array.isArray(minified[k]) && (minified[k] as any[]).length === 0)) {
+          delete (minified as any)[k];
+        }
+      });
+      
+      const jsonString = JSON.stringify(minified);
+      
       const utf8Bytes = new TextEncoder().encode(jsonString);
       let binaryString = '';
       for (let i = 0; i < utf8Bytes.length; i++) {
@@ -41,9 +61,9 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
       }
       const serializedItem = btoa(binaryString);
 
-      const shareUrl = `${window.location.origin}${window.location.pathname}?share=${serializedItem}`;
+      // Use a shorter query param 's' for 'share'
+      const shareUrl = `${window.location.origin}${window.location.pathname}?s=${serializedItem}`;
 
-      // Use the translated `displayItem` for the preview text in the share dialog.
       const ratingStars = '★'.repeat(displayItem.rating) + '☆'.repeat(5 - displayItem.rating);
       let shareText = `${t('share.text.rating')}: ${ratingStars}\n\n`;
       if (displayItem.notes) {

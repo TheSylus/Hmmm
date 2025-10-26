@@ -52,10 +52,9 @@ const App: React.FC = () => {
 
     // Check for shared item data in URL
     const params = new URLSearchParams(window.location.search);
-    const shareData = params.get('share');
+    const shareData = params.get('s'); // 's' for 'share' (shortened)
     if (shareData) {
       try {
-        // Robustly decode the Base64 string to a UTF-8 string
         const binaryString = atob(shareData);
         const utf8Bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
@@ -63,10 +62,23 @@ const App: React.FC = () => {
         }
         const jsonString = new TextDecoder().decode(utf8Bytes);
         
-        const decodedItem: FoodItem = JSON.parse(jsonString);
-        // Remove id to treat it as a new item. The rest of the data is preserved.
-        const { id, ...itemData } = decodedItem;
-        setSharedItemToShow(itemData);
+        const minified = JSON.parse(jsonString);
+
+        // Reconstruct the FoodItem from the minified object
+        const reconstructedItem: Omit<FoodItem, 'id'> = {
+            name: minified.n || '',
+            rating: minified.r || 0,
+            notes: minified.no,
+            nutriScore: minified.ns,
+            tags: minified.t,
+            ingredients: minified.i,
+            allergens: minified.a,
+            isLactoseFree: !!minified.lf,
+            isVegan: !!minified.v,
+            isGlutenFree: !!minified.gf,
+        };
+        
+        setSharedItemToShow(reconstructedItem);
       } catch (error) {
         console.error("Failed to parse shared item data from URL:", error);
       }
