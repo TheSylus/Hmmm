@@ -25,15 +25,28 @@ export const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ onKeyVerified, butto
         
         try {
             const testAi = new GoogleGenAI({ apiKey: keyToTest });
-            await testAi.models.generateContent({ model: 'gemini-2.5-flash', contents: 'hello' });
+            // Use a more robust object structure for the content, which can be more reliable.
+            await testAi.models.generateContent({ 
+                model: 'gemini-2.5-flash', 
+                contents: { parts: [{ text: 'hello' }] }
+            });
             
             setStatus('success');
             // If successful, call the callback to notify the parent.
             onKeyVerified(keyToTest);
 
-        } catch (e) {
+        } catch (e: any) {
             setStatus('error');
-            const message = e instanceof Error ? e.message : 'An unknown error occurred.';
+            
+            // Improved error message extraction to handle different error formats from the API.
+            let message = 'An unknown error occurred.';
+            if (e?.error?.message) {
+                message = e.error.message;
+            } else if (e instanceof Error) {
+                message = e.message;
+            } else if (typeof e === 'string') {
+                message = e;
+            }
 
             if (message.includes('API key not valid') || message.includes('API_KEY_INVALID')) {
                 setIsInvalidKeyError(true);
