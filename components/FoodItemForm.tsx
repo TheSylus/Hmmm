@@ -51,9 +51,12 @@ interface SpeechRecognitionErrorEvent extends Event {
   error: string;
 }
 
-interface Window {
-  SpeechRecognition?: new () => SpeechRecognition;
-  webkitSpeechRecognition?: new () => SpeechRecognition;
+// FIX: Correctly augment the global Window object for Speech Recognition APIs. Since this file is a module, `declare global` is needed to modify the global scope.
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognition;
+    webkitSpeechRecognition?: new () => SpeechRecognition;
+  }
 }
 
 interface FoodItemFormProps {

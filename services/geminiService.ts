@@ -1,18 +1,29 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { NutriScore } from "../types";
 
-// FIX: Adhere to Gemini API guidelines for client initialization.
-// The API key is sourced directly and exclusively from `process.env.API_KEY`.
-if (!process.env.API_KEY) {
-    // This should not happen in production based on guidelines, but is a safeguard.
-    throw new Error("Gemini API key is not configured in process.env.API_KEY");
-}
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// The AI client is now lazily initialized to prevent app crash on startup if API key is missing.
+let ai: GoogleGenAI | null = null;
 
+/**
+ * Lazily initializes and returns a singleton instance of the GoogleGenAI client.
+ * Throws an error if the API key is not configured, which can be caught by the calling function.
+ */
+export function getAiClient(): GoogleGenAI {
+    if (ai) {
+        return ai;
+    }
 
-export function getAiClient() {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+        // This error will be thrown when an AI feature is used, not on app load.
+        // It will be caught by the try...catch blocks in the components.
+        throw new Error("Gemini API key is not configured. AI features are unavailable.");
+    }
+
+    ai = new GoogleGenAI({ apiKey });
     return ai;
 }
+
 
 export interface BoundingBox {
     x: number;
