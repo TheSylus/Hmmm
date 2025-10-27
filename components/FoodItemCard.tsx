@@ -50,16 +50,17 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
     if (!item || !displayItem) return;
 
     try {
-      // Create a minified object for sharing to keep the URL short.
+      // Create a minified object for sharing. To keep the URL short,
+      // we exclude potentially long fields like notes, ingredients, and allergens.
       const { id, image, ...dataToShare } = item;
       const minified = {
         n: dataToShare.name,
         r: dataToShare.rating,
-        no: dataToShare.notes,
+        // no: dataToShare.notes,      // Excluded for brevity
         ns: dataToShare.nutriScore,
         t: dataToShare.tags,
-        i: dataToShare.ingredients,
-        a: dataToShare.allergens,
+        // i: dataToShare.ingredients, // Excluded for brevity
+        // a: dataToShare.allergens,   // Excluded for brevity
         lf: dataToShare.isLactoseFree,
         v: dataToShare.isVegan,
         gf: dataToShare.isGlutenFree,
@@ -78,20 +79,12 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
       // The long, functional URL for the share payload
       const shareUrl = `${window.location.origin}${window.location.pathname}?s=${serializedItem}`;
 
-      const ratingStars = '★'.repeat(displayItem.rating) + '☆'.repeat(5 - displayItem.rating);
-      let shareText = `${t('share.text.rating')}: ${ratingStars}\n\n`;
-      if (displayItem.notes) {
-        shareText += `${t('share.text.notes')}:\n${displayItem.notes}\n\n`;
-      }
-      if (displayItem.tags && displayItem.tags.length > 0) {
-        shareText += `${t('share.text.tags')}: ${displayItem.tags.join(', ')}\n\n`;
-      }
-      shareText += t('share.text.checkOut');
-
+      // A concise text for sharing. Details will be in the rich preview from the URL.
+      const shareText = t('share.text.checkOut', { name: displayItem.name });
 
       const shareData = {
         title: t('share.title', { name: displayItem.name }),
-        text: shareText, // This text no longer contains a URL
+        text: shareText,
         url: shareUrl,    // This URL is the functional one for the rich preview and click action
       };
 
