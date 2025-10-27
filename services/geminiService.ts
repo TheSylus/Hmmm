@@ -1,29 +1,30 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { NutriScore } from "../types";
 
-// The AI client is now lazily initialized to prevent app crash on startup if API key is missing.
 let ai: GoogleGenAI | null = null;
+let currentApiKey: string | null = null;
 
-/**
- * Lazily initializes and returns a singleton instance of the GoogleGenAI client.
- * Throws an error if the API key is not configured, which can be caught by the calling function.
- */
-export function getAiClient(): GoogleGenAI {
-    if (ai) {
-        return ai;
+function getApiKey(): string {
+    const storedApiKey = localStorage.getItem('gemini_api_key');
+    if (!storedApiKey) {
+        throw new Error("API-Schlüssel nicht im lokalen Speicher gefunden. Bitte geben Sie einen Schlüssel ein.");
     }
-
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-        // This error will be thrown when an AI feature is used, not on app load.
-        // It will be caught by the try...catch blocks in the components.
-        throw new Error("Gemini API key is not configured. AI features are unavailable.");
-    }
-
-    ai = new GoogleGenAI({ apiKey });
-    return ai;
+    return storedApiKey;
 }
 
+export function getAiClient() {
+    try {
+        const apiKey = getApiKey();
+        // Re-initialize the client only if the key has changed
+        if (!ai || apiKey !== currentApiKey) {
+            ai = new GoogleGenAI({ apiKey });
+            currentApiKey = apiKey;
+        }
+        return ai;
+    } catch (e) {
+        throw e;
+    }
+}
 
 export interface BoundingBox {
     x: number;
@@ -105,15 +106,13 @@ export const analyzeFoodImage = async (base64Image: string): Promise<{ name: str
   } catch (error) {
     console.error("Error analyzing food image:", error);
     if (error instanceof Error) {
-        // FIX: Provide a more user-friendly error for invalid keys and align with new API key handling.
+        // Provide a more user-friendly error for invalid keys
         if (error.message.includes('API key not valid')) {
-            // FIX: Updated error message to be generic and in English.
-            throw new Error('The configured API key is invalid. Please contact the administrator.');
+            throw new Error('Der gespeicherte API-Schlüssel ist ungültig. Bitte geben Sie einen neuen in den Einstellungen ein.');
         }
         throw error;
     }
-    // FIX: Updated error message to be in English.
-    throw new Error("Could not analyze image with AI. Please try again or enter details manually.");
+    throw new Error("Bild konnte nicht mit KI analysiert werden. Bitte versuchen Sie es erneut oder geben Sie die Details manuell ein.");
   }
 };
 
@@ -190,14 +189,11 @@ export const analyzeIngredientsImage = async (base64Image: string): Promise<{ in
     } catch (error) {
       console.error("Error analyzing ingredients image:", error);
       if (error instanceof Error) {
-          // FIX: Provide a more user-friendly error for invalid keys and align with new API key handling.
           if (error.message.includes('API key not valid')) {
-              // FIX: Updated error message to be generic and in English.
-              throw new Error('The configured API key is invalid. Please contact the administrator.');
+              throw new Error('Der gespeicherte API-Schlüssel ist ungültig. Bitte geben Sie einen neuen in den Einstellungen ein.');
           }
           throw error;
       }
-      // FIX: Updated error message to be in English.
-      throw new Error("Could not analyze ingredients list with AI.");
+      throw new Error("Zutatenliste konnte nicht mit KI analysiert werden.");
     }
   };

@@ -10,6 +10,11 @@ import { SharedItemDetailView } from './components/SharedItemDetailView';
 import { useTranslation } from './i18n/index';
 import { PlusCircleIcon, SettingsIcon } from './components/Icons';
 
+const hasValidApiKey = () => {
+    const key = localStorage.getItem('gemini_api_key');
+    return key && key !== 'MANUAL_ENTRY_MODE';
+};
+
 // Helper function to decode from URL-safe Base64 and decompress the data
 const decodeAndDecompress = async (base64UrlString: string): Promise<any> => {
   // Convert URL-safe Base64 back to standard Base64
@@ -36,6 +41,8 @@ const decodeAndDecompress = async (base64UrlString: string): Promise<any> => {
 
 const App: React.FC = () => {
   const { t } = useTranslation();
+  // This state now primarily tracks if a key exists to conditionally render AI features
+  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem('gemini_api_key'));
 
   const [foodItems, setFoodItems] = useState<FoodItem[]>(() => {
     try {
@@ -58,9 +65,15 @@ const App: React.FC = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
+  const [isBannerVisible, setIsBannerVisible] = useState(false);
   const [sharedItemToShow, setSharedItemToShow] = useState<Omit<FoodItem, 'id'> | null>(null);
   
   useEffect(() => {
+    // Show banner if key is missing and it hasn't been dismissed this session
+    if (!hasValidApiKey() && sessionStorage.getItem('apiKeyBannerDismissed') !== 'true') {
+      setIsBannerVisible(true);
+    }
+
     // Check for shared item data in URL
     const params = new URLSearchParams(window.location.search);
     const shareData = params.get('s'); // 's' for 'share' (shortened)
@@ -95,6 +108,24 @@ const App: React.FC = () => {
     }
   }, []);
   
+  const handleDismissBanner = () => {
+    sessionStorage.setItem('apiKeyBannerDismissed', 'true');
+    setIsBannerVisible(false);
+  };
+
+  const handleKeyUpdate = useCallback((newKey: string | null) => {
+    if (newKey) {
+        localStorage.setItem('gemini_api_key', newKey);
+    } else {
+        localStorage.removeItem('gemini_api_key');
+    }
+    setApiKey(newKey);
+    // If a valid key is added, hide the banner
+    if (newKey && newKey !== 'MANUAL_ENTRY_MODE') {
+      setIsBannerVisible(false);
+    }
+  }, []);
+
 
   useEffect(() => {
     localStorage.setItem('foodItems', JSON.stringify(foodItems));
@@ -249,6 +280,8 @@ const App: React.FC = () => {
           )}
       </header>
       
+      {isBannerVisible && <ApiKeyBanner onDismiss={handleDismissBanner} onOpenSettings={() => setIsSettingsOpen(true)} />}
+
       <main className="container mx-auto p-4 md:p-8">
         {isFormVisible ? (
             <FoodItemForm 
@@ -293,7 +326,7 @@ const App: React.FC = () => {
         <p>{t('footer.text')}</p>
       </footer>
 
-      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
+      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} onKeyUpdate={handleKeyUpdate} />}
 
       {potentialDuplicates.length > 0 && itemToAdd && (
         <DuplicateConfirmationModal
