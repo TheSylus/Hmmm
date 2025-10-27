@@ -90,7 +90,7 @@ Input: ${JSON.stringify(textsToTranslate)}`
         return result;
 
     } catch (error) {
-        if (error instanceof Error && error.message.includes('API-Schlüssel nicht im lokalen Speicher gefunden')) {
+        if (error instanceof Error && error.message.includes('API key not found in local storage')) {
             console.warn("Translation skipped: API key not found.");
         } else {
             console.error("Error translating texts:", error);

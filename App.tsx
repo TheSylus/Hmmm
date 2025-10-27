@@ -6,6 +6,9 @@ import { DuplicateConfirmationModal } from './components/DuplicateConfirmationMo
 import { ImageModal } from './components/ImageModal';
 import { SettingsModal } from './components/SettingsModal';
 import { SharedItemDetailView } from './components/SharedItemDetailView';
+import { ApiKeyModal } from './components/ApiKeyModal';
+import { ApiKeyBanner } from './components/ApiKeyBanner';
+import * as geminiService from './services/geminiService';
 import { useTranslation } from './i18n/index';
 import { PlusCircleIcon, SettingsIcon } from './components/Icons';
 
@@ -58,6 +61,14 @@ const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   const [sharedItemToShow, setSharedItemToShow] = useState<Omit<FoodItem, 'id'> | null>(null);
+
+  const [hasValidApiKey, setHasValidApiKey] = useState<boolean | null>(null);
+  const [isBannerDismissed, setIsBannerDismissed] = useState(() => sessionStorage.getItem('apiKeyBannerDismissed') === 'true');
+  
+  useEffect(() => {
+    const keyExists = geminiService.hasValidApiKey();
+    setHasValidApiKey(keyExists);
+  }, []);
   
   useEffect(() => {
     // Check for shared item data in URL
@@ -97,6 +108,16 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('foodItems', JSON.stringify(foodItems));
   }, [foodItems]);
+
+  const handleKeySave = (apiKey: string) => {
+    geminiService.saveApiKey(apiKey);
+    setHasValidApiKey(true);
+  };
+
+  const handleDismissBanner = () => {
+    setIsBannerDismissed(true);
+    sessionStorage.setItem('apiKeyBannerDismissed', 'true');
+  };
 
   const handleSaveItem = (itemData: Omit<FoodItem, 'id'>): void => {
     if (editingItem) {
@@ -190,8 +211,18 @@ const App: React.FC = () => {
 
   const isSearching = searchTerm.trim() !== '';
 
+  if (hasValidApiKey === null) {
+    // Still loading the key status
+    return null;
+  }
+
+  if (hasValidApiKey === false) {
+    return <ApiKeyModal onKeySave={handleKeySave} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 font-sans transition-colors duration-300">
+       {!hasValidApiKey && !isBannerDismissed && <ApiKeyBanner onDismiss={handleDismissBanner} onOpenSettings={() => setIsSettingsOpen(true)} />}
       <header className="bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm shadow-md dark:shadow-lg sticky top-0 z-20">
           <div className="container mx-auto px-4 py-4 flex justify-between items-center">
               <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-green-500 dark:from-indigo-400 dark:to-green-400">
@@ -291,7 +322,7 @@ const App: React.FC = () => {
         <p>{t('footer.text')}</p>
       </footer>
 
-      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
+      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} hasValidApiKey={!!hasValidApiKey} setHasValidApiKey={setHasValidApiKey} />}
 
       {potentialDuplicates.length > 0 && itemToAdd && (
         <DuplicateConfirmationModal

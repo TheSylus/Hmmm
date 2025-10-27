@@ -1,6 +1,6 @@
 import React, { useState, FormEvent, useRef, useEffect } from 'react';
 import { FoodItem, NutriScore } from '../types';
-import { BoundingBox, analyzeFoodImage, analyzeIngredientsImage } from '../services/geminiService';
+import { BoundingBox, analyzeFoodImage, analyzeIngredientsImage, hasValidApiKey } from '../services/geminiService';
 import { fetchProductFromOpenFoodFacts, searchProductByNameFromOpenFoodFacts } from '../services/openFoodFactsService';
 import { CameraCapture } from './CameraCapture';
 import { BarcodeScanner } from './BarcodeScanner';
@@ -40,7 +40,13 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   const { isAiEnabled, isBarcodeScannerEnabled, isOffSearchEnabled } = useAppSettings();
   
   const isEditing = !!initialData;
-  const isAiAvailable = isAiEnabled;
+  const [apiKeyValid, setApiKeyValid] = useState(false);
+
+  useEffect(() => {
+    setApiKeyValid(hasValidApiKey());
+  }, []);
+  
+  const isAiAvailable = isAiEnabled && apiKeyValid;
 
   // Form state
   const [name, setName] = useState('');

@@ -2,19 +2,37 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { NutriScore } from "../types";
 
 let ai: GoogleGenAI | null = null;
+const API_KEY_STORAGE_KEY = 'gemini-api-key';
 
-// FIX: Export the `getAiClient` function so it can be imported by other modules.
+export const saveApiKey = (apiKey: string) => {
+    localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
+    ai = null; // Reset the client to force re-initialization with the new key
+};
+
+export const getApiKey = (): string | null => {
+    return localStorage.getItem(API_KEY_STORAGE_KEY);
+};
+
+export const removeApiKey = () => {
+    localStorage.removeItem(API_KEY_STORAGE_KEY);
+    ai = null;
+};
+
+export const hasValidApiKey = (): boolean => {
+    return !!getApiKey();
+};
+
 export function getAiClient() {
-    if (!process.env.API_KEY) {
-        throw new Error("API key is not configured. Please set the API_KEY environment variable.");
+    const apiKey = getApiKey();
+    if (!apiKey) {
+        throw new Error("API key not found in local storage. Please add one in settings.");
     }
     // Initialize the client only once
     if (!ai) {
-        ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        ai = new GoogleGenAI({ apiKey });
     }
     return ai;
 }
-
 
 export interface BoundingBox {
     x: number;
