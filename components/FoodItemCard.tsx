@@ -77,13 +77,13 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
       const serializedItem = await compressAndEncode(minified);
 
       const shareUrl = `${window.location.origin}${window.location.pathname}?s=${serializedItem}`;
-
+      const shareText = t('share.title', { name: displayItem.name });
+      
       const shareData = {
-        title: t('share.title', { name: displayItem.name }),
-        // By removing the 'text' property, we prevent apps like WhatsApp from appending
-        // the URL to the message body. The share will consist of a rich preview of the
-        // URL with the title.
-        url: shareUrl,
+        title: shareText,
+        // The URL is now part of the text. Most apps will parse it and create a rich preview.
+        // This avoids the issue where some apps append the 'url' field as plain text when it's separate.
+        text: `${shareText}\n${shareUrl}`,
       };
 
       if (navigator.share) {
