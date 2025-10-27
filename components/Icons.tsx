@@ -177,3 +177,10 @@ export const AllergenShellfishIcon: React.FC<{ className?: string }> = ({ classN
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h18" />
     </svg>
 );
+
+export const MicrophoneIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a3.375 3.375 0 0 0 3.375-3.375V9.375a3.375 3.375 0 0 0-6.75 0v6c0 1.862 1.513 3.375 3.375 3.375Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5v3c0 4.142-3.358 7.5-7.5 7.5s-7.5-3.358-7.5-7.5v-3m15 0-1.5-1.5m-12 0L6 9" />
+    </svg>
+);

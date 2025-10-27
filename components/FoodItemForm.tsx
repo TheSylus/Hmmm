@@ -5,22 +5,62 @@ import { fetchProductFromOpenFoodFacts, searchProductByNameFromOpenFoodFacts } f
 import { CameraCapture } from './CameraCapture';
 import { BarcodeScanner } from './BarcodeScanner';
 import { ImageCropper } from './ImageCropper';
-import { StarIcon, SparklesIcon, CameraIcon, PlusCircleIcon, XMarkIcon, DocumentTextIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon, BarcodeIcon } from './Icons';
+import { StarIcon, SparklesIcon, CameraIcon, PlusCircleIcon, XMarkIcon, DocumentTextIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon, BarcodeIcon, MicrophoneIcon } from './Icons';
 import { AllergenDisplay } from './AllergenDisplay';
 import { useTranslation } from '../i18n/index';
 import { useAppSettings } from '../contexts/AppSettingsContext';
 import { translateTexts } from '../services/translationService';
+
+// FIX: Add type definitions for the Web Speech API to resolve TypeScript errors.
+// These types are not included in standard DOM typings.
+interface SpeechRecognition extends EventTarget {
+  grammars: any; // Simplified for this use case
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onerror: (event: SpeechRecognitionErrorEvent) => void;
+  onend: () => void;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionResultList {
+  [index: number]: SpeechRecognitionResult;
+  length: number;
+}
+
+interface SpeechRecognitionResult {
+  [index: number]: SpeechRecognitionAlternative;
+  isFinal: boolean;
+  length: number;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+
+interface Window {
+  SpeechRecognition?: new () => SpeechRecognition;
+  webkitSpeechRecognition?: new () => SpeechRecognition;
+}
 
 interface FoodItemFormProps {
   onSaveItem: (item: Omit<FoodItem, 'id'>) => void;
   onCancel: () => void;
   initialData?: FoodItem | null;
 }
-
-const hasValidApiKey = () => {
-    const key = localStorage.getItem('gemini_api_key');
-    return key && key !== 'MANUAL_ENTRY_MODE';
-};
 
 const nutriScoreOptions: NutriScore[] = ['A', 'B', 'C', 'D', 'E'];
 const nutriScoreColors: Record<NutriScore, string> = {
@@ -36,7 +76,8 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   const { isAiEnabled, isBarcodeScannerEnabled, isOffSearchEnabled } = useAppSettings();
   
   const isEditing = !!initialData;
-  const isAiAvailable = isAiEnabled && hasValidApiKey();
+  // FIX: Simplified AI availability check. The API key is now assumed to be present via environment variables.
+  const isAiAvailable = isAiEnabled;
 
   // Form state
   const [name, setName] = useState('');
@@ -67,6 +108,69 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   const [error, setError] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Speech recognition state
+  const isSpeechSupported = !!(typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window));
+  const [isListening, setIsListening] = useState(false);
+  const [listeningField, setListeningField] = useState<'name' | 'notes' | null>(null);
+  const speechRecognition = useRef<SpeechRecognition | null>(null);
+
+  // Initialize Speech Recognition
+  useEffect(() => {
+    if (!isSpeechSupported) return;
+
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognitionAPI();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    
+    recognition.onend = () => {
+      setIsListening(false);
+      setListeningField(null);
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        if (event.error === 'not-allowed') {
+           setError(t('form.speech.error.permission'));
+        } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+           console.error('Speech recognition error:', event.error);
+        }
+        setIsListening(false);
+        setListeningField(null);
+    };
+
+    speechRecognition.current = recognition;
+  }, [isSpeechSupported, t]);
+  
+  const handleToggleListening = (field: 'name' | 'notes') => {
+    if (!isSpeechSupported) {
+        setError(t('form.speech.error.notSupported'));
+        return;
+    }
+
+    const recognition = speechRecognition.current;
+    if (!recognition) return;
+
+    if (isListening) {
+      recognition.stop();
+    } else {
+      setError(null);
+      // Attach the result handler here, so it has access to the correct `field`
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+          const transcript = event.results[0][0].transcript.trim();
+          if (field === 'name') {
+              setName(transcript);
+          } else if (field === 'notes') {
+              setNotes(prev => (prev ? prev.trim() + ' ' : '') + transcript);
+          }
+      };
+
+      recognition.lang = language === 'de' ? 'de-DE' : 'en-US';
+      setListeningField(field);
+      setIsListening(true);
+      recognition.start();
+    }
+  };
 
   useEffect(() => {
     if (initialData) {
@@ -486,14 +590,26 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
             </div>
 
             <div className="w-full md:w-2/3 space-y-4">
-                <input
-                    type="text"
-                    placeholder={t('form.placeholder.name')}
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    required
-                    className={`w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3 transition-shadow ${highlightedFields.includes('name') ? 'highlight-ai' : ''}`}
-                />
+                 <div className="relative">
+                    <input
+                        type="text"
+                        placeholder={t('form.placeholder.name')}
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        required
+                        className={`w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3 transition-shadow ${isSpeechSupported ? 'pr-10' : ''} ${highlightedFields.includes('name') ? 'highlight-ai' : ''}`}
+                    />
+                     {isSpeechSupported && (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleListening('name')}
+                          className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                          aria-label={isListening && listeningField === 'name' ? t('form.speech.stopRecording') : t('form.speech.startRecording')}
+                        >
+                          <MicrophoneIcon className={`w-5 h-5 ${isListening && listeningField === 'name' ? 'text-red-500 animate-pulse' : ''}`} />
+                        </button>
+                      )}
+                </div>
                 <div className="flex items-center gap-4">
                     <label className="text-gray-700 dark:text-gray-300 font-medium">{t('form.label.rating')}</label>
                     <div className="flex items-center">
@@ -510,13 +626,25 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                         ))}
                     </div>
                 </div>
-                <textarea
-                    placeholder={t('form.placeholder.notes')}
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    rows={3}
-                    className="w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3"
-                />
+                 <div className="relative">
+                    <textarea
+                        placeholder={t('form.placeholder.notes')}
+                        value={notes}
+                        onChange={e => setNotes(e.target.value)}
+                        rows={3}
+                        className={`w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3 ${isSpeechSupported ? 'pr-10' : ''}`}
+                    />
+                    {isSpeechSupported && (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleListening('notes')}
+                          className="absolute top-3 right-3 flex items-center text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                          aria-label={isListening && listeningField === 'notes' ? t('form.speech.stopRecording') : t('form.speech.startRecording')}
+                        >
+                          <MicrophoneIcon className={`w-5 h-5 ${isListening && listeningField === 'notes' ? 'text-red-500 animate-pulse' : ''}`} />
+                        </button>
+                    )}
+                </div>
                 <input
                     type="text"
                     placeholder={t('form.placeholder.tags')}
