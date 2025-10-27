@@ -77,13 +77,17 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
       const serializedItem = await compressAndEncode(minified);
 
       const shareUrl = `${window.location.origin}${window.location.pathname}?s=${serializedItem}`;
-      const shareText = t('share.title', { name: displayItem.name });
+      
+      const shareTitle = t('share.title', { name: displayItem.name });
+      const shareBody = displayItem.rating > 0
+        ? t('share.text', { name: displayItem.name, rating: displayItem.rating })
+        : t('share.text_unrated', { name: displayItem.name });
       
       const shareData = {
-        title: shareText,
-        // The URL is now part of the text. Most apps will parse it and create a rich preview.
+        title: shareTitle,
+        // The URL is part of the text. Most apps will parse it and create a rich preview.
         // This avoids the issue where some apps append the 'url' field as plain text when it's separate.
-        text: `${shareText}\n${shareUrl}`,
+        text: `${shareBody}\n${shareUrl}`,
       };
 
       if (navigator.share) {
