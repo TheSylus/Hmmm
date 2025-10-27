@@ -76,16 +76,14 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
       
       const serializedItem = await compressAndEncode(minified);
 
-      // The long, functional URL for the share payload
       const shareUrl = `${window.location.origin}${window.location.pathname}?s=${serializedItem}`;
-
-      // A concise text for sharing. Details will be in the rich preview from the URL.
-      const shareText = t('share.text.checkOut', { name: displayItem.name });
 
       const shareData = {
         title: t('share.title', { name: displayItem.name }),
-        text: shareText,
-        url: shareUrl,    // This URL is the functional one for the rich preview and click action
+        // By removing the 'text' property, we prevent apps like WhatsApp from appending
+        // the URL to the message body. The share will consist of a rich preview of the
+        // URL with the title.
+        url: shareUrl,
       };
 
       if (navigator.share) {
