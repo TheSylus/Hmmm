@@ -1,764 +1,356 @@
-import React, { useState, FormEvent, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FoodItem, NutriScore } from '../types';
-import { BoundingBox, analyzeFoodImage, analyzeIngredientsImage } from '../services/geminiService';
+import { useTranslation } from '../i18n/index';
+import { useAppSettings } from '../contexts/AppSettingsContext';
+import { analyzeFoodImage, analyzeIngredientsImage, BoundingBox } from '../services/geminiService';
 import { fetchProductFromOpenFoodFacts, searchProductByNameFromOpenFoodFacts } from '../services/openFoodFactsService';
 import { CameraCapture } from './CameraCapture';
 import { BarcodeScanner } from './BarcodeScanner';
 import { ImageCropper } from './ImageCropper';
-import { StarIcon, SparklesIcon, CameraIcon, PlusCircleIcon, XMarkIcon, DocumentTextIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon, BarcodeIcon, MicrophoneIcon } from './Icons';
-import { AllergenDisplay } from './AllergenDisplay';
-import { useTranslation } from '../i18n/index';
-import { useAppSettings } from '../contexts/AppSettingsContext';
-import { translateTexts } from '../services/translationService';
-
-// FIX: Add type definitions for the Web Speech API to resolve TypeScript errors.
-// These types are not included in standard DOM typings.
-interface SpeechRecognition extends EventTarget {
-  grammars: any; // Simplified for this use case
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  maxAlternatives: number;
-  start(): void;
-  stop(): void;
-  abort(): void;
-  onresult: (event: SpeechRecognitionEvent) => void;
-  onerror: (event: SpeechRecognitionErrorEvent) => void;
-  onend: () => void;
-}
-
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-}
-
-interface SpeechRecognitionResultList {
-  [index: number]: SpeechRecognitionResult;
-  length: number;
-}
-
-interface SpeechRecognitionResult {
-  [index: number]: SpeechRecognitionAlternative;
-  isFinal: boolean;
-  length: number;
-}
-
-interface SpeechRecognitionAlternative {
-  transcript: string;
-  confidence: number;
-}
-
-interface SpeechRecognitionErrorEvent extends Event {
-  error: string;
-}
-
-// FIX: Correctly augment the global Window object for Speech Recognition APIs. Since this file is a module, `declare global` is needed to modify the global scope.
-declare global {
-  interface Window {
-    SpeechRecognition?: new () => SpeechRecognition;
-    webkitSpeechRecognition?: new () => SpeechRecognition;
-  }
-}
+import { StarIcon, XMarkIcon, SparklesIcon, CameraIcon, UploadIcon, BarcodeIcon, MicrophoneIcon } from './Icons';
 
 interface FoodItemFormProps {
-  onSaveItem: (item: Omit<FoodItem, 'id'>) => void;
+  onSaveItem: (itemData: Omit<FoodItem, 'id'>) => void;
   onCancel: () => void;
   initialData?: FoodItem | null;
 }
 
-const nutriScoreOptions: NutriScore[] = ['A', 'B', 'C', 'D', 'E'];
-const nutriScoreColors: Record<NutriScore, string> = {
-  A: 'bg-green-600',
-  B: 'bg-lime-600',
-  C: 'bg-yellow-500',
-  D: 'bg-orange-500',
-  E: 'bg-red-600',
+const initialFormState: Omit<FoodItem, 'id'> = {
+  name: '',
+  rating: 0,
+  notes: '',
+  image: '',
+  nutriScore: undefined,
+  tags: [],
+  ingredients: [],
+  allergens: [],
+  isLactoseFree: false,
+  isVegan: false,
+  isGlutenFree: false,
 };
 
 export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel, initialData }) => {
-  const { t, language } = useTranslation();
+  const { t } = useTranslation();
   const { isAiEnabled, isBarcodeScannerEnabled, isOffSearchEnabled } = useAppSettings();
-  
-  const isEditing = !!initialData;
-  // FIX: Simplified AI availability check. The API key is now assumed to be present via environment variables.
-  const isAiAvailable = isAiEnabled;
 
-  // Form state
-  const [name, setName] = useState('');
-  const [rating, setRating] = useState(0);
-  const [notes, setNotes] = useState('');
-  const [image, setImage] = useState<string | null>(null);
-  const [nutriScore, setNutriScore] = useState<NutriScore | ''>('');
-  const [tags, setTags] = useState('');
-  const [ingredients, setIngredients] = useState<string[]>([]);
-  const [allergens, setAllergens] = useState<string[]>([]);
-  const [dietary, setDietary] = useState({
-    isLactoseFree: false,
-    isVegan: false,
-    isGlutenFree: false,
-  });
+  const [formData, setFormData] = useState<Omit<FoodItem, 'id'>>(initialFormState);
+  const [tagInput, setTagInput] = useState('');
+  const [error, setError] = useState('');
 
-  // UI/Flow state
   const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
-  const [scanMode, setScanMode] = useState<'main' | 'ingredients'>('main');
-  const [uncroppedImage, setUncroppedImage] = useState<string | null>(null);
-  const [suggestedCrop, setSuggestedCrop] = useState<BoundingBox | null | undefined>(null);
-  const [isCropperOpen, setIsCropperOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [analysisProgress, setAnalysisProgress] = useState({ active: false, message: '' });
-  const [highlightedFields, setHighlightedFields] = useState<string[]>([]);
-  const [isIngredientsLoading, setIngredientsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+  const [suggestedCrop, setSuggestedCrop] = useState<BoundingBox | null>(null);
+
+  const [aiProgress, setAiProgress] = useState<string[]>([]);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isIngredientsLoading, setIsIngredientsLoading] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // Speech recognition state
-  const isSpeechSupported = !!(typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window));
-  const [isListening, setIsListening] = useState(false);
-  const [listeningField, setListeningField] = useState<'name' | 'notes' | null>(null);
-  const speechRecognition = useRef<SpeechRecognition | null>(null);
-
-  // Initialize Speech Recognition
-  useEffect(() => {
-    if (!isSpeechSupported) return;
-
-    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognitionAPI();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    
-    recognition.onend = () => {
-      setIsListening(false);
-      setListeningField(null);
-    };
-
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        if (event.error === 'not-allowed') {
-           setError(t('form.speech.error.permission'));
-        } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
-           console.error('Speech recognition error:', event.error);
-        }
-        setIsListening(false);
-        setListeningField(null);
-    };
-
-    speechRecognition.current = recognition;
-  }, [isSpeechSupported, t]);
-  
-  const handleToggleListening = (field: 'name' | 'notes') => {
-    if (!isSpeechSupported) {
-        setError(t('form.speech.error.notSupported'));
-        return;
-    }
-
-    const recognition = speechRecognition.current;
-    if (!recognition) return;
-
-    if (isListening) {
-      recognition.stop();
-    } else {
-      setError(null);
-      // Attach the result handler here, so it has access to the correct `field`
-      recognition.onresult = (event: SpeechRecognitionEvent) => {
-          const transcript = event.results[0][0].transcript.trim();
-          if (field === 'name') {
-              setName(transcript);
-          } else if (field === 'notes') {
-              setNotes(prev => (prev ? prev.trim() + ' ' : '') + transcript);
-          }
-      };
-
-      recognition.lang = language === 'de' ? 'de-DE' : 'en-US';
-      setListeningField(field);
-      setIsListening(true);
-      recognition.start();
-    }
-  };
 
   useEffect(() => {
     if (initialData) {
-      setName(initialData.name);
-      setRating(initialData.rating);
-      setNotes(initialData.notes || '');
-      setImage(initialData.image || null);
-      setNutriScore(initialData.nutriScore || '');
-      setTags(initialData.tags?.join(', ') || '');
-      setIngredients(initialData.ingredients || []);
-      setAllergens(initialData.allergens || []);
-      setDietary({
-        isLactoseFree: initialData.isLactoseFree || false,
-        isVegan: initialData.isVegan || false,
-        isGlutenFree: initialData.isGlutenFree || false,
-      });
+      setFormData(initialData);
+      setTagInput(initialData.tags?.join(', ') || '');
     } else {
-      resetFormState();
+      setFormData(initialFormState);
+      setTagInput('');
     }
   }, [initialData]);
 
-  useEffect(() => {
-    if (highlightedFields.length > 0) {
-      const timer = setTimeout(() => {
-        setHighlightedFields([]);
-      }, 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [highlightedFields]);
-
-
-  const resetFormState = () => {
-    setName('');
-    setRating(0);
-    setNotes('');
-    setImage(null);
-    setNutriScore('');
-    setTags('');
-    setIngredients([]);
-    setAllergens([]);
-    setDietary({ isLactoseFree: false, isVegan: false, isGlutenFree: false });
-    setError(null);
-    setIsLoading(false);
-    if(fileInputRef.current) fileInputRef.current.value = '';
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleScanMainImage = () => {
-    setScanMode('main');
-    setIsCameraOpen(true);
+  const handleRatingChange = (newRating: number) => {
+    setFormData(prev => ({ ...prev, rating: newRating }));
   };
 
-  const handleScanIngredients = () => {
-    setScanMode('ingredients');
-    setIsCameraOpen(true);
+  const handleTagChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTagInput(e.target.value);
+    const tags = e.target.value.split(',').map(tag => tag.trim()).filter(Boolean);
+    setFormData(prev => ({ ...prev, tags }));
   };
   
-  const handleBarcodeScanned = async (barcode: string) => {
-    setIsBarcodeScannerOpen(false);
-    setError(null);
-
-    if (!isOffSearchEnabled) {
-      setError(t('form.error.offSearchDisabled'));
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const productData = await fetchProductFromOpenFoodFacts(barcode);
-      
-      let finalName = productData.name || '';
-      let finalTags = productData.tags || [];
-      let finalIngredients = productData.ingredients || [];
-      let finalAllergens = productData.allergens || [];
-
-      if (language !== 'en' && isAiAvailable) {
-        const textsToTranslate = [finalName, ...finalTags, ...finalIngredients, ...finalAllergens];
-        try {
-          const translated = await translateTexts(textsToTranslate, language);
-          let currentIndex = 0;
-          finalName = translated[currentIndex++];
-          finalTags = translated.slice(currentIndex, currentIndex + finalTags.length);
-          currentIndex += finalTags.length;
-          finalIngredients = translated.slice(currentIndex, currentIndex + finalIngredients.length);
-          currentIndex += finalIngredients.length;
-          finalAllergens = translated.slice(currentIndex, currentIndex + finalAllergens.length);
-        } catch (e) {
-          console.error("Failed to translate OFF results for form", e);
-        }
-      }
-
-      setName(finalName);
-      setTags(finalTags.join(', '));
-      setNutriScore((productData.nutriScore?.toUpperCase() as NutriScore) || '');
-      setImage(productData.image || null);
-      setIngredients(finalIngredients);
-      setAllergens(finalAllergens);
-      setDietary({
-        isLactoseFree: productData.isLactoseFree || false,
-        isVegan: productData.isVegan || false,
-        isGlutenFree: productData.isGlutenFree || false,
-      });
-
-    } catch(e) {
-       console.error(e);
-       const errorMessage = e instanceof Error ? e.message : t('form.error.barcodeError');
-       setError(errorMessage);
-    } finally {
-        setIsLoading(false);
-    }
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, checked } = e.target;
+    setFormData(prev => ({...prev, [name]: checked}));
   };
 
-  const handleImageFromCamera = async (imageDataUrl: string) => {
-    setIsCameraOpen(false);
-    setError(null);
-  
-    if (!isAiAvailable) {
-      setUncroppedImage(imageDataUrl);
-      setSuggestedCrop(null);
-      setIsCropperOpen(true);
-      return;
-    }
-  
-    if (scanMode === 'main') {
-      let progressInterval: number | undefined;
-      try {
-        const progressMessages = [
-            t('form.aiProgress.readingName'),
-            t('form.aiProgress.findingScore'),
-            t('form.aiProgress.generatingTags'),
-            ...(isOffSearchEnabled ? [t('form.aiProgress.searchingDatabase')] : []),
-            t('form.aiProgress.locatingProduct')
-        ];
-        setAnalysisProgress({ active: true, message: progressMessages[0] });
-        let messageIndex = 0;
-        progressInterval = window.setInterval(() => {
-            messageIndex = (messageIndex + 1) % progressMessages.length;
-            setAnalysisProgress(prev => ({ ...prev, message: progressMessages[messageIndex] }));
-        }, 1500);
-
-        // Step 1: Analyze image with AI
-        const aiResult = await analyzeFoodImage(imageDataUrl);
-        
-        // Step 2: Fetch supplementary data from Open Food Facts
-        let offResult: Partial<FoodItem> = {};
-        if (aiResult.name && isOffSearchEnabled) {
-            try {
-                setAnalysisProgress(prev => ({ ...prev, message: t('form.aiProgress.searchingDatabase') }));
-                offResult = await searchProductByNameFromOpenFoodFacts(aiResult.name);
-            } catch (offError) {
-                console.warn("Could not fetch supplementary data from Open Food Facts:", offError);
-                // Non-critical error, proceed with AI data only
-            }
-        }
-        
-        if(progressInterval) clearInterval(progressInterval);
-        setAnalysisProgress({ active: true, message: t('form.aiProgress.complete') });
-        
-        // Step 3: Merge AI and OFF results
-        const combinedTags = new Set([...(aiResult.tags || []), ...(offResult.tags || [])]);
-
-        let mergedData = {
-            name: aiResult.name || '',
-            tags: Array.from(combinedTags),
-            nutriScore: (aiResult.nutriScore || offResult.nutriScore || '') as NutriScore | '',
-            ingredients: offResult.ingredients || [],
-            allergens: offResult.allergens || [],
-            isLactoseFree: offResult.isLactoseFree || false,
-            isVegan: offResult.isVegan || false,
-            isGlutenFree: offResult.isGlutenFree || false,
-        };
-        
-        const newHighlightedFields: string[] = [];
-        if (mergedData.name) newHighlightedFields.push('name');
-        if (mergedData.tags.length > 0) newHighlightedFields.push('tags');
-        if (mergedData.nutriScore) newHighlightedFields.push('nutriScore');
-
-        // Step 4: Translate if necessary
-        if (language !== 'en' && textsNeedTranslation(mergedData)) {
-            const textsToTranslate = [
-                mergedData.name, ...mergedData.tags, ...mergedData.ingredients, ...mergedData.allergens
-            ];
-            
-            try {
-                const translated = await translateTexts(textsToTranslate, language);
-                if (translated.length === textsToTranslate.length) {
-                    let i = 0;
-                    mergedData.name = translated[i++];
-                    mergedData.tags = translated.slice(i, i + mergedData.tags.length);
-                    i += mergedData.tags.length;
-                    mergedData.ingredients = translated.slice(i, i + mergedData.ingredients.length);
-                    i += mergedData.ingredients.length;
-                    mergedData.allergens = translated.slice(i, i + mergedData.allergens.length);
-                }
-            } catch (e) {
-                console.error("Failed to translate merged AI/OFF results for form", e);
-            }
-        }
-        
-        // Step 5: Set form state
-        setName(mergedData.name);
-        setTags(mergedData.tags.join(', '));
-        setNutriScore(mergedData.nutriScore);
-        setIngredients(mergedData.ingredients);
-        setAllergens(mergedData.allergens);
-        setDietary({
-            isLactoseFree: mergedData.isLactoseFree,
-            isVegan: mergedData.isVegan,
-            isGlutenFree: mergedData.isGlutenFree,
-        });
-
-        setUncroppedImage(imageDataUrl);
-        setSuggestedCrop(aiResult.boundingBox);
-        setIsCropperOpen(true);
-        setHighlightedFields(newHighlightedFields);
-
-      } catch (e) {
-        if(progressInterval) clearInterval(progressInterval);
-        console.error(e);
-        const errorMessage = e instanceof Error ? e.message : t('form.error.genericAiError');
-        setError(errorMessage);
-        setUncroppedImage(imageDataUrl);
-        setSuggestedCrop(null);
-        setIsCropperOpen(true);
-      } finally {
-         setTimeout(() => setAnalysisProgress({ active: false, message: '' }), 500);
-      }
-    } else { // scanMode === 'ingredients'
-      setIngredientsLoading(true);
-      try {
-        const result = await analyzeIngredientsImage(imageDataUrl);
-
-        let finalIngredients = result.ingredients || [];
-        let finalAllergens = result.allergens || [];
-        
-        if (language !== 'en' && (finalIngredients.length > 0 || finalAllergens.length > 0)) {
-            try {
-                const textsToTranslate = [...finalIngredients, ...finalAllergens];
-                const translated = await translateTexts(textsToTranslate, language);
-                if (translated.length === textsToTranslate.length) {
-                    finalIngredients = translated.slice(0, finalIngredients.length);
-                    finalAllergens = translated.slice(finalIngredients.length);
-                }
-            } catch(e) {
-                console.error("Failed to translate ingredients AI results for form", e);
-            }
-        }
-
-        setIngredients(finalIngredients);
-        setAllergens(finalAllergens);
-        setDietary({
-            isLactoseFree: result.isLactoseFree,
-            isVegan: result.isVegan,
-            isGlutenFree: result.isGlutenFree,
-        });
-      } catch (e) {
-        console.error(e);
-        const errorMessage = e instanceof Error ? e.message : t('form.error.ingredientsAiError');
-        setError(errorMessage);
-      } finally {
-        setIngredientsLoading(false);
-      }
-    }
-  };
-
-  const textsNeedTranslation = (data: {name:string, tags:string[], ingredients:string[], allergens:string[]}) => {
-    return data.name || data.tags.length > 0 || data.ingredients.length > 0 || data.allergens.length > 0;
-  }
-
-  const handleCropComplete = (croppedImageUrl: string) => {
-    setImage(croppedImageUrl);
-    setIsCropperOpen(false);
-    setUncroppedImage(null);
-    setSuggestedCrop(null);
-  };
-  
-  const handleCropCancel = () => {
-    if (uncroppedImage) setImage(uncroppedImage);
-    setIsCropperOpen(false);
-    setUncroppedImage(null);
-    setSuggestedCrop(null);
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setScanMode('main'); // File upload is always for the main image
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        handleImageFromCamera(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleDietaryChange = (key: keyof typeof dietary) => {
-    setDietary(prev => ({...prev, [key]: !prev[key]}));
-  }
-
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-
-    if (!name.trim() || rating === 0) {
+    if (!formData.name || formData.rating === 0) {
       setError(t('form.error.nameAndRating'));
       return;
     }
-
-    onSaveItem({
-      name,
-      rating,
-      notes: notes || undefined,
-      image: image || undefined,
-      nutriScore: nutriScore || undefined,
-      tags: tags ? tags.split(',').map(tag => tag.trim()).filter(Boolean) : undefined,
-      ingredients: ingredients.length > 0 ? ingredients : undefined,
-      allergens: allergens.length > 0 ? allergens : undefined,
-      isLactoseFree: dietary.isLactoseFree,
-      isVegan: dietary.isVegan,
-      isGlutenFree: dietary.isGlutenFree,
-    });
+    setError('');
+    onSaveItem(formData);
+  };
+  
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            if(event.target?.result) {
+                const base64 = event.target.result as string;
+                if (isAiEnabled) {
+                    setImageToCrop(base64);
+                    handleAiAnalysis(base64);
+                } else {
+                    setFormData(prev => ({...prev, image: base64}));
+                }
+            }
+        };
+        reader.readAsDataURL(e.target.files[0]);
+      }
   };
 
-  const removeImage = () => {
-    setImage(null);
-    if(fileInputRef.current) fileInputRef.current.value = '';
-  }
+  const handleCapture = (imageDataUrl: string) => {
+    setIsCameraOpen(false);
+    if (isAiEnabled) {
+      setImageToCrop(imageDataUrl);
+      handleAiAnalysis(imageDataUrl);
+    } else {
+        setFormData(prev => ({...prev, image: imageDataUrl}));
+    }
+  };
   
-  return (
-    <>
-      <style>{`
-        .highlight-ai {
-          animation: highlight-ai-anim 2.5s ease-out;
+  const handleCrop = (croppedImageUrl: string) => {
+    setFormData(prev => ({ ...prev, image: croppedImageUrl }));
+    setImageToCrop(null);
+    setSuggestedCrop(null);
+  };
+
+  const handleAiAnalysis = async (base64Image: string) => {
+    setIsAiLoading(true);
+    setError('');
+    setAiProgress([t('form.aiProgress.locatingProduct')]);
+
+    try {
+        const { name, tags, nutriScore, boundingBox } = await analyzeFoodImage(base64Image);
+        
+        setAiProgress(prev => [...prev, t('form.aiProgress.readingName')]);
+        if (boundingBox) setSuggestedCrop(boundingBox);
+
+        let finalData: Partial<FoodItem> = {
+            name,
+            tags,
+            nutriScore: nutriScore || undefined,
+        };
+
+        setAiProgress(prev => [...prev, t('form.aiProgress.generatingTags'), t('form.aiProgress.findingScore')]);
+
+        if (isOffSearchEnabled && name) {
+            setAiProgress(prev => [...prev, t('form.aiProgress.searchingDatabase')]);
+            try {
+                const offData = await searchProductByNameFromOpenFoodFacts(name);
+                finalData = {...offData, ...finalData}; // AI data takes precedence
+            } catch (offError) {
+                console.warn("Open Food Facts search failed, using only AI data.", offError);
+            }
         }
-        @keyframes highlight-ai-anim {
-          0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
-          25% { box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.5); }
-          100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
-        }
-        .dark .highlight-ai {
-            animation-name: highlight-ai-anim-dark;
-        }
-        @keyframes highlight-ai-anim-dark {
-          0% { box-shadow: 0 0 0 0 rgba(129, 140, 248, 0); }
-          25% { box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.4); }
-          100% { box-shadow: 0 0 0 0 rgba(129, 140, 248, 0); }
-        }
-      `}</style>
-      <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-lg mb-8">
-         <h2 className="text-2xl font-bold text-gray-900 dark:text-white text-center -mb-2">
-            {isEditing ? t('form.editTitle') : t('form.addNewButton')}
-        </h2>
-        <div className="flex flex-col md:flex-row gap-4 mt-6">
-            <div className="w-full md:w-1/3 flex-shrink-0">
-                <div className="aspect-square bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center relative overflow-hidden text-gray-500 dark:text-gray-400">
-                    {analysisProgress.active && (
-                        <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-20 p-4">
-                            <SparklesIcon className="w-10 h-10 animate-pulse text-indigo-400" />
-                            <p className="mt-2 text-sm text-gray-300 text-center">{analysisProgress.message}</p>
-                        </div>
-                    )}
-                    {isLoading && !analysisProgress.active && (
-                         <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-20">
-                            <div className="w-10 h-10 border-4 border-t-indigo-400 border-gray-400 rounded-full animate-spin"></div>
-                         </div>
-                    )}
-                    {image ? (
-                        <>
-                            <img src={image} alt="Preview" className="w-full h-full object-cover" />
-                            <button
-                                type="button"
-                                onClick={removeImage}
-                                className="absolute top-2 right-2 p-1 bg-black/50 rounded-full text-white hover:bg-black/80 transition"
-                                aria-label={t('form.image.removeAria')}
-                            >
-                                <XMarkIcon className="w-5 h-5" />
-                            </button>
-                        </>
-                    ) : (
-                         <div className="text-center p-4">
-                            <CameraIcon className="w-16 h-16 mx-auto" />
-                            <p className="mt-2 text-sm">{t('form.image.placeholder')}</p>
-                        </div>
-                    )}
-                </div>
-                <div className={`grid ${isBarcodeScannerEnabled ? 'grid-cols-2' : 'grid-cols-1'} gap-2 mt-2`}>
-                    {isBarcodeScannerEnabled && (
-                        <button
-                            type="button"
-                            onClick={() => setIsBarcodeScannerOpen(true)}
-                            className="w-full flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-md transition disabled:bg-sky-400 dark:disabled:bg-gray-600"
-                            disabled={isLoading || analysisProgress.active}
-                        >
-                            <BarcodeIcon className="w-5 h-5" />
-                            <span>{t('form.button.scanBarcode')}</span>
-                        </button>
-                    )}
-                    <button
-                        type="button"
-                        onClick={handleScanMainImage}
-                        className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md transition disabled:bg-indigo-400 dark:disabled:bg-gray-600"
-                        disabled={isLoading || analysisProgress.active}
-                    >
-                        <CameraIcon className="w-5 h-5" />
-                        <span>{t('form.button.scanNew')}</span>
-                    </button>
-                </div>
-                 <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full mt-2 flex items-center justify-center gap-2 bg-gray-500 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-md transition disabled:bg-gray-400 dark:disabled:bg-gray-500"
-                    disabled={isLoading || analysisProgress.active}
+        
+        setFormData(prev => ({...prev, ...finalData}));
+        setTagInput(finalData.tags?.join(', ') || '');
+        setAiProgress(prev => [...prev, t('form.aiProgress.complete')]);
+    } catch (e) {
+        console.error("AI analysis failed:", e);
+        setError(t('form.error.genericAiError'));
+        setFormData(prev => ({...prev, image: base64Image})); // Use full image if AI fails
+        setImageToCrop(null); // Close cropper
+    } finally {
+        setTimeout(() => setIsAiLoading(false), 1500);
+    }
+  };
+
+  const handleScanIngredients = async () => {
+    if (!formData.image) return;
+    setIsIngredientsLoading(true);
+    setError('');
+    try {
+      const result = await analyzeIngredientsImage(formData.image);
+      setFormData(prev => ({...prev, ...result}));
+    } catch (e) {
+        console.error("Ingredients analysis failed:", e);
+        setError(t('form.error.ingredientsAiError'));
+    } finally {
+        setIsIngredientsLoading(false);
+    }
+  };
+  
+  const handleBarcodeScan = async (barcode: string) => {
+    setIsScannerOpen(false);
+    if (!isOffSearchEnabled) {
+        setError(t('form.error.offSearchDisabled'));
+        return;
+    }
+    setIsAiLoading(true);
+    setError('');
+    setAiProgress([t('form.aiProgress.searchingDatabase')]);
+    try {
+        const productData = await fetchProductFromOpenFoodFacts(barcode);
+        setFormData(prev => ({...prev, ...productData}));
+        if(productData.tags) setTagInput(productData.tags.join(', '));
+        setAiProgress(prev => [...prev, t('form.aiProgress.complete')]);
+    } catch (e) {
+        console.error("Barcode scan failed:", e);
+        setError(t('form.error.barcodeError'));
+    } finally {
+        setTimeout(() => setIsAiLoading(false), 1500);
+    }
+  };
+
+
+  const renderImageState = () => {
+    if (formData.image) {
+        return (
+            <div className="relative group">
+                <img src={formData.image} alt={formData.name} className="w-full h-48 object-cover rounded-lg shadow-md" />
+                <button
+                    onClick={() => setFormData(p => ({...p, image: ''}))}
+                    className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label={t('form.image.removeAria')}
                 >
-                    <PlusCircleIcon className="w-5 h-5" />
-                    <span>{t('form.button.upload')}</span>
+                    <XMarkIcon className="w-5 h-5" />
                 </button>
-                <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
             </div>
+        )
+    }
+    return (
+        <div className="w-full h-48 bg-gray-200 dark:bg-gray-700/50 rounded-lg flex flex-col items-center justify-center text-center p-4">
+            <p className="text-gray-500 dark:text-gray-400 mb-4">{t('form.image.placeholder')}</p>
+            <div className="flex gap-2">
+                <button type="button" onClick={() => setIsCameraOpen(true)} className="flex-1 px-3 py-2 bg-indigo-500 text-white text-sm rounded-md hover:bg-indigo-600 transition-colors flex items-center justify-center gap-2">
+                    <CameraIcon className="w-4 h-4" /> {t('form.button.scanNew')}
+                </button>
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="flex-1 px-3 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 transition-colors flex items-center justify-center gap-2">
+                    <UploadIcon className="w-4 h-4" /> {t('form.button.upload')}
+                </button>
+                <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageUpload} className="hidden" />
+            </div>
+        </div>
+    )
+  };
 
-            <div className="w-full md:w-2/3 space-y-4">
-                 <div className="relative">
-                    <input
-                        type="text"
-                        placeholder={t('form.placeholder.name')}
-                        value={name}
-                        onChange={e => setName(e.target.value)}
-                        required
-                        className={`w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3 transition-shadow ${isSpeechSupported ? 'pr-10' : ''} ${highlightedFields.includes('name') ? 'highlight-ai' : ''}`}
-                    />
-                     {isSpeechSupported && (
-                        <button
-                          type="button"
-                          onClick={() => handleToggleListening('name')}
-                          className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                          aria-label={isListening && listeningField === 'name' ? t('form.speech.stopRecording') : t('form.speech.startRecording')}
-                        >
-                          <MicrophoneIcon className={`w-5 h-5 ${isListening && listeningField === 'name' ? 'text-red-500 animate-pulse' : ''}`} />
-                        </button>
-                      )}
-                </div>
-                <div className="flex items-center gap-4">
-                    <label className="text-gray-700 dark:text-gray-300 font-medium">{t('form.label.rating')}</label>
-                    <div className="flex items-center">
-                        {[1, 2, 3, 4, 5].map(star => (
-                            <button
-                                type="button"
-                                key={star}
-                                onClick={() => setRating(star)}
-                                className="text-gray-400 dark:text-gray-600 hover:text-yellow-400 transition"
-                                aria-label={t(star > 1 ? 'form.aria.ratePlural' : 'form.aria.rate', { star })}
-                            >
-                                <StarIcon className={`w-8 h-8 ${rating >= star ? 'text-yellow-400' : ''}`} filled={rating >= star} />
-                            </button>
-                        ))}
+  return (
+    <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg space-y-6">
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{initialData ? t('form.editTitle') : t('form.addNewButton')}</h2>
+      
+      {error && <div className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 p-3 rounded-md">{error}</div>}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Left Column: Image and Actions */}
+        <div className="space-y-4">
+            {renderImageState()}
+
+            {isAiLoading && (
+                <div className="bg-indigo-100 dark:bg-indigo-900/50 p-3 rounded-lg text-sm">
+                    <div className="flex items-center gap-2 font-semibold text-indigo-700 dark:text-indigo-300 mb-2">
+                        <SparklesIcon className="w-5 h-5 animate-pulse" />
+                        <span>AI Analysis in Progress...</span>
                     </div>
+                    <ul className="list-disc list-inside text-indigo-600 dark:text-indigo-400 space-y-1">
+                        {aiProgress.map((step, i) => <li key={i}>{step}</li>)}
+                    </ul>
                 </div>
-                 <div className="relative">
-                    <textarea
-                        placeholder={t('form.placeholder.notes')}
-                        value={notes}
-                        onChange={e => setNotes(e.target.value)}
-                        rows={3}
-                        className={`w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3 ${isSpeechSupported ? 'pr-10' : ''}`}
-                    />
-                    {isSpeechSupported && (
-                        <button
-                          type="button"
-                          onClick={() => handleToggleListening('notes')}
-                          className="absolute top-3 right-3 flex items-center text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                          aria-label={isListening && listeningField === 'notes' ? t('form.speech.stopRecording') : t('form.speech.startRecording')}
-                        >
-                          <MicrophoneIcon className={`w-5 h-5 ${isListening && listeningField === 'notes' ? 'text-red-500 animate-pulse' : ''}`} />
-                        </button>
-                    )}
-                </div>
-                <input
-                    type="text"
-                    placeholder={t('form.placeholder.tags')}
-                    value={tags}
-                    onChange={e => setTags(e.target.value)}
-                    className={`w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3 transition-shadow ${highlightedFields.includes('tags') ? 'highlight-ai' : ''}`}
-                />
-                <div className={`p-2 rounded-md transition-shadow ${highlightedFields.includes('nutriScore') ? 'highlight-ai' : ''}`}>
-                    <div className="flex items-center gap-4">
-                        <label className="text-gray-700 dark:text-gray-300 font-medium shrink-0">{t('form.label.nutriScore')}</label>
-                        <div className="flex items-center gap-2 flex-wrap">
-                            {nutriScoreOptions.map(score => (
-                                <button
-                                    type="button"
-                                    key={score}
-                                    onClick={() => setNutriScore(current => current === score ? '' : score)}
-                                    className={`w-8 h-8 rounded-full text-white font-bold flex items-center justify-center transition-transform transform ${nutriScoreColors[score]} ${nutriScore === score ? 'ring-2 ring-indigo-500 dark:ring-indigo-400 ring-offset-2 ring-offset-white dark:ring-offset-gray-800 scale-110' : 'hover:scale-105'}`}
-                                    aria-pressed={nutriScore === score}
-                                    aria-label={t('form.aria.selectNutriScore', { score })}
-                                >
-                                    {score}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-                 {/* Ingredients and Dietary Section */}
-                 <div className="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-700/50">
-                    <div className="flex justify-between items-center">
-                        <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">{t('form.ingredients.title')}</h3>
-                        {isAiAvailable && (
-                            <button
-                                type="button"
-                                onClick={handleScanIngredients}
-                                disabled={isIngredientsLoading}
-                                className="flex items-center gap-2 text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-1.5 px-3 rounded-md transition disabled:opacity-50"
-                            >
-                                <DocumentTextIcon className="w-4 h-4" />
-                                <span>{t('form.button.scanIngredients')}</span>
-                            </button>
-                        )}
-                    </div>
-                    {isIngredientsLoading ? (
-                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                             <SparklesIcon className="w-4 h-4 animate-pulse" />
-                            <span>{t('form.ingredients.loading')}</span>
-                        </div>
-                    ) : (
-                        <div>
-                             <div className="mb-2">
-                                <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{t('form.dietary.title')}:</h4>
-                                <div className="grid grid-cols-3 gap-2">
-                                    <button type="button" onClick={() => handleDietaryChange('isLactoseFree')} aria-pressed={dietary.isLactoseFree} className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg border-2 transition-colors ${dietary.isLactoseFree ? 'bg-blue-100 dark:bg-blue-900/50 border-blue-500 dark:border-blue-400 text-blue-700 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-700/50 border-transparent text-blue-600 dark:text-blue-400 hover:border-gray-300 dark:hover:border-gray-600'}`}>
-                                        <LactoseFreeIcon className="w-7 h-7" />
-                                        <span className="text-xs font-semibold">{t('form.dietary.lactoseFree')}</span>
-                                    </button>
-                                    <button type="button" onClick={() => handleDietaryChange('isVegan')} aria-pressed={dietary.isVegan} className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg border-2 transition-colors ${dietary.isVegan ? 'bg-green-100 dark:bg-green-900/50 border-green-500 dark:border-green-400 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700/50 border-transparent hover:border-gray-300 dark:hover:border-gray-600'}`}>
-                                        <VeganIcon className="w-7 h-7" />
-                                        <span className="text-xs font-semibold">{t('form.dietary.vegan')}</span>
-                                    </button>
-                                    <button type="button" onClick={() => handleDietaryChange('isGlutenFree')} aria-pressed={dietary.isGlutenFree} className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-lg border-2 transition-colors ${dietary.isGlutenFree ? 'bg-amber-100 dark:bg-amber-900/50 border-amber-500 dark:border-amber-400 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700/50 border-transparent hover:border-gray-300 dark:hover:border-gray-600'}`}>
-                                        <GlutenFreeIcon className="w-7 h-7" />
-                                        <span className="text-xs font-semibold">{t('form.dietary.glutenFree')}</span>
-                                    </button>
-                                </div>
-                            </div>
-                            {allergens.length > 0 && (
-                                <div>
-                                    <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 mt-3">{t('form.allergens.title')}:</h4>
-                                    <AllergenDisplay allergens={allergens} />
-                                </div>
-                            )}
-                             {ingredients.length > 0 && (
-                                <div>
-                                    <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 mt-3">{t('form.ingredients.ingredientsList')}:</h4>
-                                    <p className="text-xs text-gray-500 dark:text-gray-500 italic leading-snug">{ingredients.join(', ')}</p>
-                                </div>
-                            )}
-                            {ingredients.length === 0 && (
-                                <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">{t('form.ingredients.placeholder')}</p>
-                            )}
-                        </div>
-                    )}
-                </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={handleScanIngredients} disabled={!formData.image || isIngredientsLoading} className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-semibold hover:bg-green-700 disabled:bg-green-400 dark:disabled:bg-gray-600 transition-colors">
+                    {isIngredientsLoading ? t('form.ingredients.loading') : t('form.button.scanIngredients')}
+                </button>
+                <button type="button" onClick={() => setIsScannerOpen(true)} disabled={!isBarcodeScannerEnabled} className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold hover:bg-blue-700 disabled:bg-blue-400 dark:disabled:bg-gray-600 transition-colors flex items-center justify-center gap-2">
+                    <BarcodeIcon className="w-5 h-5" />
+                    <span>{t('form.button.scanBarcode')}</span>
+                </button>
             </div>
         </div>
         
-        {error && <p className="text-red-500 dark:text-red-400 bg-red-100 dark:bg-red-900/50 p-3 rounded-md text-sm mt-4">{error}</p>}
-        
-        <div className="flex flex-col sm:flex-row gap-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="w-full sm:w-auto bg-gray-500 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-md transition-colors"
-            >
-              {t('form.button.cancel')}
-            </button>
-            <button
-              type="submit"
-              className="w-full sm:flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md transition-colors text-lg disabled:bg-green-400 dark:disabled:bg-gray-600"
-              disabled={isLoading || analysisProgress.active || isIngredientsLoading || !name || rating === 0}
-            >
-              <PlusCircleIcon className="w-6 h-6" />
-              {isEditing ? t('form.button.update') : t('form.button.save')}
-            </button>
+        {/* Right Column: Form Fields */}
+        <div className="space-y-4">
+            <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                placeholder={t('form.placeholder.name')}
+                className="w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3"
+            />
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('form.label.rating')}</label>
+                <div className="flex items-center">
+                    {[1, 2, 3, 4, 5].map(star => (
+                        <button type="button" key={star} onClick={() => handleRatingChange(star)} aria-label={t(star > 1 ? 'form.aria.ratePlural' : 'form.aria.rate', { star })}>
+                            <StarIcon className={`w-8 h-8 cursor-pointer ${formData.rating >= star ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`} filled={formData.rating >= star} />
+                        </button>
+                    ))}
+                </div>
+            </div>
+             <textarea
+                name="notes"
+                value={formData.notes}
+                onChange={handleChange}
+                placeholder={t('form.placeholder.notes')}
+                rows={3}
+                className="w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3"
+            />
+            <input
+                type="text"
+                value={tagInput}
+                onChange={handleTagChange}
+                placeholder={t('form.placeholder.tags')}
+                className="w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3"
+            />
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('form.label.nutriScore')}</label>
+                <div className="flex gap-2">
+                    {(['A', 'B', 'C', 'D', 'E'] as NutriScore[]).map(score => (
+                        <button type="button" key={score} onClick={() => setFormData(prev => ({...prev, nutriScore: score}))} className={`w-8 h-8 rounded-full font-bold text-white text-sm transition-transform transform hover:scale-110 ${formData.nutriScore === score ? 'ring-2 ring-offset-2 dark:ring-offset-gray-800 ring-indigo-500' : ''} ${'bg-' + {A:'green-600',B:'lime-600',C:'yellow-500',D:'orange-500',E:'red-600'}[score]}`} aria-label={t('form.aria.selectNutriScore', {score})}>
+                            {score}
+                        </button>
+                    ))}
+                </div>
+            </div>
         </div>
-      </form>
+      </div>
+      
+      {/* Ingredients & Dietary Section */}
+      <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">{t('form.ingredients.title')}</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-1">{t('form.ingredients.ingredientsList')}</h4>
+                <p className="text-sm text-gray-500 dark:text-gray-400 h-24 overflow-y-auto bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md">
+                    {formData.ingredients && formData.ingredients.length > 0 ? formData.ingredients.join(', ') : t('form.ingredients.placeholder')}
+                </p>
+            </div>
+            <div>
+                <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('form.dietary.title')}</h4>
+                <div className="space-y-2">
+                    {['isLactoseFree', 'isVegan', 'isGlutenFree'].map(key => (
+                        <label key={key} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                            <input type="checkbox" name={key} checked={formData[key as keyof typeof formData] as boolean} onChange={handleCheckboxChange} className="rounded text-indigo-600 focus:ring-indigo-500" />
+                            {t(`form.dietary.${key.substring(2).toLowerCase()}` as any)}
+                        </label>
+                    ))}
+                </div>
+            </div>
+        </div>
+      </div>
 
-      {isCameraOpen && <CameraCapture onCapture={handleImageFromCamera} onClose={() => setIsCameraOpen(false)} />}
-      {isBarcodeScannerOpen && <BarcodeScanner onScan={handleBarcodeScanned} onClose={() => setIsBarcodeScannerOpen(false)} />}
-      {isCropperOpen && uncroppedImage && <ImageCropper imageUrl={uncroppedImage} suggestedCrop={suggestedCrop} onCrop={handleCropComplete} onCancel={handleCropCancel} />}
-    </>
+      <div className="flex flex-col sm:flex-row justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <button type="button" onClick={onCancel} className="w-full sm:w-auto px-6 py-2 bg-gray-500 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-700 text-white rounded-md font-semibold transition-colors">
+          {t('form.button.cancel')}
+        </button>
+        <button type="submit" className="w-full sm:w-auto px-8 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 transition-colors">
+          {initialData ? t('form.button.update') : t('form.button.save')}
+        </button>
+      </div>
+      
+      {isCameraOpen && <CameraCapture onCapture={handleCapture} onClose={() => setIsCameraOpen(false)} />}
+      {isScannerOpen && <BarcodeScanner onScan={handleBarcodeScan} onClose={() => setIsScannerOpen(false)} />}
+      {imageToCrop && <ImageCropper imageUrl={imageToCrop} suggestedCrop={suggestedCrop} onCrop={handleCrop} onCancel={() => {setImageToCrop(null); setSuggestedCrop(null); setFormData(p=>({...p, image: imageToCrop}));}} />}
+    </form>
   );
 };
