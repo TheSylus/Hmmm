@@ -31,6 +31,27 @@ export const SharedItemDetailView: React.FC<SharedItemDetailViewProps> = ({ item
   const hasAllergens = displayItem.allergens && displayItem.allergens.length > 0;
   const hasIngredients = displayItem.ingredients && displayItem.ingredients.length > 0;
   const hasTags = displayItem.tags && displayItem.tags.length > 0;
+  
+  const DietaryIcon: React.FC<{ type: 'lactoseFree' | 'vegan' | 'glutenFree', className?: string }> = ({ type, className }) => {
+      const icons = {
+          lactoseFree: <LactoseFreeIcon className={`${className} text-blue-600 dark:text-blue-400`} />,
+          vegan: <VeganIcon className={`${className}`} />,
+          glutenFree: <GlutenFreeIcon className={`${className}`} />,
+      };
+      const tooltips = {
+          lactoseFree: t('card.lactoseFreeTooltip'),
+          vegan: t('card.veganTooltip'),
+          glutenFree: t('card.glutenFreeTooltip'),
+      };
+      return (
+          <div className="relative group flex items-center justify-center">
+              {icons[type]}
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                  {tooltips[type]}
+              </span>
+          </div>
+      );
+  }
 
   return (
     <div className="space-y-4 text-sm">
@@ -85,22 +106,10 @@ export const SharedItemDetailView: React.FC<SharedItemDetailViewProps> = ({ item
           {hasDietary && (
             <div>
               <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('detail.dietaryTitle')}</h4>
-              <div className="space-y-1.5">
-                {displayItem.isLactoseFree && (
-                  <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-                    <LactoseFreeIcon className="w-5 h-5" /> <span>{t('form.dietary.lactoseFree')}</span>
-                  </div>
-                )}
-                {displayItem.isVegan && (
-                   <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
-                    <VeganIcon className="w-5 h-5" /> <span>{t('form.dietary.vegan')}</span>
-                  </div>
-                )}
-                {displayItem.isGlutenFree && (
-                   <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
-                    <GlutenFreeIcon className="w-5 h-5" /> <span>{t('form.dietary.glutenFree')}</span>
-                  </div>
-                )}
+              <div className="flex items-center gap-2">
+                {displayItem.isLactoseFree && <DietaryIcon type="lactoseFree" className="w-6 h-6" />}
+                {displayItem.isVegan && <DietaryIcon type="vegan" className="w-6 h-6" />}
+                {displayItem.isGlutenFree && <DietaryIcon type="glutenFree" className="w-6 h-6" />}
               </div>
             </div>
           )}

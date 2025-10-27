@@ -4,23 +4,27 @@ import { BoundingBox, analyzeFoodImage, analyzeIngredientsImage } from '../servi
 import { fetchProductFromOpenFoodFacts, searchProductByNameFromOpenFoodFacts } from '../services/openFoodFactsService';
 import { CameraCapture } from './CameraCapture';
 import { BarcodeScanner } from './BarcodeScanner';
+import { SpeechInputModal } from './SpeechInputModal';
 import { ImageCropper } from './ImageCropper';
-import { StarIcon, SparklesIcon, CameraIcon, PlusCircleIcon, XMarkIcon, DocumentTextIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon, BarcodeIcon } from './Icons';
+import { StarIcon, SparklesIcon, CameraIcon, PlusCircleIcon, XMarkIcon, DocumentTextIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon, BarcodeIcon, MicrophoneIcon, SpinnerIcon } from './Icons';
 import { AllergenDisplay } from './AllergenDisplay';
 import { useTranslation } from '../i18n/index';
 import { useAppSettings } from '../contexts/AppSettingsContext';
 import { translateTexts } from '../services/translationService';
+
+// Add type definitions for the Web Speech API for TypeScript
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
 
 interface FoodItemFormProps {
   onSaveItem: (item: Omit<FoodItem, 'id'>) => void;
   onCancel: () => void;
   initialData?: FoodItem | null;
 }
-
-const hasValidApiKey = () => {
-    const key = localStorage.getItem('gemini_api_key');
-    return key && key !== 'MANUAL_ENTRY_MODE';
-};
 
 const nutriScoreOptions: NutriScore[] = ['A', 'B', 'C', 'D', 'E'];
 const nutriScoreColors: Record<NutriScore, string> = {
@@ -36,7 +40,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   const { isAiEnabled, isBarcodeScannerEnabled, isOffSearchEnabled } = useAppSettings();
   
   const isEditing = !!initialData;
-  const isAiAvailable = isAiEnabled && hasValidApiKey();
+  const isAiAvailable = isAiEnabled;
 
   // Form state
   const [name, setName] = useState('');
@@ -56,6 +60,8 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   // UI/Flow state
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
+  const [isSpeechModalOpen, setIsSpeechModalOpen] = useState(false);
+  const [isNameSearchLoading, setIsNameSearchLoading] = useState(false);
   const [scanMode, setScanMode] = useState<'main' | 'ingredients'>('main');
   const [uncroppedImage, setUncroppedImage] = useState<string | null>(null);
   const [suggestedCrop, setSuggestedCrop] = useState<BoundingBox | null | undefined>(null);
@@ -121,6 +127,69 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   const handleScanIngredients = () => {
     setScanMode('ingredients');
     setIsCameraOpen(true);
+  };
+
+  const processSpokenProductName = async (productName: string) => {
+    if (!productName || !isOffSearchEnabled) return;
+    
+    setIsNameSearchLoading(true);
+    setError(null);
+    try {
+      const offResult = await searchProductByNameFromOpenFoodFacts(productName);
+      
+      let mergedData = {
+          tags: offResult.tags || [],
+          nutriScore: (offResult.nutriScore || '') as NutriScore | '',
+          ingredients: offResult.ingredients || [],
+          allergens: offResult.allergens || [],
+          isLactoseFree: offResult.isLactoseFree || false,
+          isVegan: offResult.isVegan || false,
+          isGlutenFree: offResult.isGlutenFree || false,
+      };
+
+      const newHighlightedFields: string[] = [];
+      if (mergedData.tags.length > 0) newHighlightedFields.push('tags');
+      if (mergedData.nutriScore) newHighlightedFields.push('nutriScore');
+
+      if (language !== 'en' && (mergedData.tags.length > 0 || mergedData.ingredients.length > 0 || mergedData.allergens.length > 0)) {
+          const textsToTranslate = [...mergedData.tags, ...mergedData.ingredients, ...mergedData.allergens];
+          try {
+              const translated = await translateTexts(textsToTranslate, language);
+              let i = 0;
+              mergedData.tags = translated.slice(i, i + mergedData.tags.length);
+              i += mergedData.tags.length;
+              mergedData.ingredients = translated.slice(i, i + mergedData.ingredients.length);
+              i += mergedData.ingredients.length;
+              mergedData.allergens = translated.slice(i, i + mergedData.allergens.length);
+          } catch (e) {
+              console.error("Failed to translate OFF results for form", e);
+          }
+      }
+
+      setTags(current => (current ? `${current}, ` : '') + mergedData.tags.join(', '));
+      if(!nutriScore) setNutriScore(mergedData.nutriScore);
+      setIngredients(current => [...current, ...mergedData.ingredients]);
+      setAllergens(current => [...current, ...mergedData.allergens]);
+      setDietary(current => ({
+          isLactoseFree: current.isLactoseFree || mergedData.isLactoseFree,
+          isVegan: current.isVegan || mergedData.isVegan,
+          isGlutenFree: current.isGlutenFree || mergedData.isGlutenFree,
+      }));
+      setHighlightedFields(newHighlightedFields);
+    } catch (e) {
+      console.error("Error searching by product name:", e);
+      // Non-critical error, do not show to user
+    } finally {
+      setIsNameSearchLoading(false);
+    }
+  };
+  
+  const handleDictationResult = (transcript: string) => {
+    setIsSpeechModalOpen(false);
+    if (transcript) {
+      setName(transcript);
+      processSpokenProductName(transcript);
+    }
   };
   
   const handleBarcodeScanned = async (barcode: string) => {
@@ -451,26 +520,20 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                         </div>
                     )}
                 </div>
-                <div className={`grid ${isBarcodeScannerEnabled ? 'grid-cols-2' : 'grid-cols-1'} gap-2 mt-2`}>
+                <div className={`grid ${isBarcodeScannerEnabled ? 'grid-cols-3' : 'grid-cols-2'} gap-2 mt-2`}>
                     {isBarcodeScannerEnabled && (
-                        <button
-                            type="button"
-                            onClick={() => setIsBarcodeScannerOpen(true)}
-                            className="w-full flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-md transition disabled:bg-sky-400 dark:disabled:bg-gray-600"
-                            disabled={isLoading || analysisProgress.active}
-                        >
+                        <button type="button" onClick={() => setIsBarcodeScannerOpen(true)} className="flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-3 rounded-md transition disabled:bg-sky-400 dark:disabled:bg-gray-600 text-sm" disabled={isLoading || analysisProgress.active}>
                             <BarcodeIcon className="w-5 h-5" />
                             <span>{t('form.button.scanBarcode')}</span>
                         </button>
                     )}
-                    <button
-                        type="button"
-                        onClick={handleScanMainImage}
-                        className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md transition disabled:bg-indigo-400 dark:disabled:bg-gray-600"
-                        disabled={isLoading || analysisProgress.active}
-                    >
+                    <button type="button" onClick={handleScanMainImage} className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-3 rounded-md transition disabled:bg-indigo-400 dark:disabled:bg-gray-600 text-sm" disabled={isLoading || analysisProgress.active}>
                         <CameraIcon className="w-5 h-5" />
                         <span>{t('form.button.scanNew')}</span>
+                    </button>
+                    <button type="button" onClick={() => setIsSpeechModalOpen(true)} className="flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 px-3 rounded-md transition disabled:bg-teal-400 dark:disabled:bg-gray-600 text-sm" disabled={isLoading || analysisProgress.active}>
+                        <MicrophoneIcon className="w-5 h-5" />
+                        <span>{t('form.button.dictate')}</span>
                     </button>
                 </div>
                  <button
@@ -486,14 +549,21 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
             </div>
 
             <div className="w-full md:w-2/3 space-y-4">
-                <input
-                    type="text"
-                    placeholder={t('form.placeholder.name')}
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    required
-                    className={`w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3 transition-shadow ${highlightedFields.includes('name') ? 'highlight-ai' : ''}`}
-                />
+                <div className="relative">
+                    <input
+                        type="text"
+                        placeholder={t('form.placeholder.name')}
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        required
+                        className={`w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3 transition-shadow ${highlightedFields.includes('name') ? 'highlight-ai' : ''} ${isNameSearchLoading ? 'pr-10' : ''}`}
+                    />
+                    {isNameSearchLoading && (
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                            <SpinnerIcon className="w-5 h-5 text-gray-400" />
+                        </div>
+                    )}
+                </div>
                 <div className="flex items-center gap-4">
                     <label className="text-gray-700 dark:text-gray-300 font-medium">{t('form.label.rating')}</label>
                     <div className="flex items-center">
@@ -547,7 +617,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                  <div className="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-700/50">
                     <div className="flex justify-between items-center">
                         <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">{t('form.ingredients.title')}</h3>
-                        {isAiAvailable && (
+                        {isAiAvailable && image && (
                             <button
                                 type="button"
                                 onClick={handleScanIngredients}
@@ -627,6 +697,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
 
       {isCameraOpen && <CameraCapture onCapture={handleImageFromCamera} onClose={() => setIsCameraOpen(false)} />}
       {isBarcodeScannerOpen && <BarcodeScanner onScan={handleBarcodeScanned} onClose={() => setIsBarcodeScannerOpen(false)} />}
+      {isSpeechModalOpen && <SpeechInputModal onDictate={handleDictationResult} onClose={() => setIsSpeechModalOpen(false)} />}
       {isCropperOpen && uncroppedImage && <ImageCropper imageUrl={uncroppedImage} suggestedCrop={suggestedCrop} onCrop={handleCropComplete} onCancel={handleCropCancel} />}
     </>
   );

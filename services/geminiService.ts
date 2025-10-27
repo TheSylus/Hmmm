@@ -2,29 +2,19 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { NutriScore } from "../types";
 
 let ai: GoogleGenAI | null = null;
-let currentApiKey: string | null = null;
 
-function getApiKey(): string {
-    const storedApiKey = localStorage.getItem('gemini_api_key');
-    if (!storedApiKey) {
-        throw new Error("API-Schlüssel nicht im lokalen Speicher gefunden. Bitte geben Sie einen Schlüssel ein.");
-    }
-    return storedApiKey;
-}
-
+// FIX: Export the `getAiClient` function so it can be imported by other modules.
 export function getAiClient() {
-    try {
-        const apiKey = getApiKey();
-        // Re-initialize the client only if the key has changed
-        if (!ai || apiKey !== currentApiKey) {
-            ai = new GoogleGenAI({ apiKey });
-            currentApiKey = apiKey;
-        }
-        return ai;
-    } catch (e) {
-        throw e;
+    if (!process.env.API_KEY) {
+        throw new Error("API key is not configured. Please set the API_KEY environment variable.");
     }
+    // Initialize the client only once
+    if (!ai) {
+        ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    }
+    return ai;
 }
+
 
 export interface BoundingBox {
     x: number;
@@ -106,13 +96,9 @@ export const analyzeFoodImage = async (base64Image: string): Promise<{ name: str
   } catch (error) {
     console.error("Error analyzing food image:", error);
     if (error instanceof Error) {
-        // Provide a more user-friendly error for invalid keys
-        if (error.message.includes('API key not valid')) {
-            throw new Error('Der gespeicherte API-Schlüssel ist ungültig. Bitte geben Sie einen neuen in den Einstellungen ein.');
-        }
         throw error;
     }
-    throw new Error("Bild konnte nicht mit KI analysiert werden. Bitte versuchen Sie es erneut oder geben Sie die Details manuell ein.");
+    throw new Error("Could not analyze image with AI. Please try again or enter details manually.");
   }
 };
 
@@ -189,11 +175,8 @@ export const analyzeIngredientsImage = async (base64Image: string): Promise<{ in
     } catch (error) {
       console.error("Error analyzing ingredients image:", error);
       if (error instanceof Error) {
-          if (error.message.includes('API key not valid')) {
-              throw new Error('Der gespeicherte API-Schlüssel ist ungültig. Bitte geben Sie einen neuen in den Einstellungen ein.');
-          }
           throw error;
       }
-      throw new Error("Zutatenliste konnte nicht mit KI analysiert werden.");
+      throw new Error("Could not analyze ingredients list with AI.");
     }
   };
