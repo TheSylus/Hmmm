@@ -155,26 +155,65 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
                 {t(displayItem.itemType === 'dish' ? 'card.dishTooltip' : 'card.productTooltip')}
             </span>
         </div>
-        <div className="flex flex-row items-start gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
             {/* Image Thumbnail */}
             {displayItem.image && (
-                <div className="w-24 h-24 flex-shrink-0 rounded-md overflow-hidden group">
+                <div className="w-full h-32 sm:w-24 sm:h-24 flex-shrink-0 rounded-md overflow-hidden group">
                     <img src={displayItem.image} alt={displayItem.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                 </div>
             )}
 
             {/* Core Details Section */}
-            <div className={`flex-1 flex flex-col justify-start overflow-hidden ${!displayItem.image ? 'pl-8' : ''}`}>
-                <h3 className={`text-lg font-bold text-gray-900 dark:text-white truncate ${isPreview ? '' : 'pr-20'}`} title={displayItem.name}>{displayItem.name}</h3>
+            <div className={`flex-1 flex flex-col justify-start overflow-hidden w-full ${!displayItem.image ? 'pl-8' : ''}`}>
+                <div className="flex justify-between items-start gap-2">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white truncate" title={displayItem.name}>{displayItem.name}</h3>
+                    
+                    {!isPreview && (
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                            {displayItem.itemType === 'product' && (
+                                <button
+                                onClick={(e) => { e.stopPropagation(); onAddToShoppingList(item); }}
+                                className="text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
+                                aria-label={t('shoppingList.addAria', { name: displayItem.name })}
+                                >
+                                <ShoppingBagIcon className="w-5 h-5" />
+                            </button>
+                            )}
+                            {navigator.share && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleShare(); }}
+                                className="text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
+                                aria-label={t('card.shareAria', { name: displayItem.name })}
+                            >
+                                <ShareIcon className="w-5 h-5" />
+                            </button>
+                            )}
+                            <button
+                            onClick={(e) => { e.stopPropagation(); onEdit(item.id); }}
+                            className="text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
+                            aria-label={t('card.editAria', { name: displayItem.name })}
+                            >
+                            <PencilIcon className="w-5 h-5" />
+                            </button>
+                            <button
+                            onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
+                            className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
+                            aria-label={t('card.deleteAria', { name: displayItem.name })}
+                            >
+                            <TrashIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                    )}
+                </div>
                 
                 {displayItem.itemType === 'dish' && displayItem.restaurantName && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate italic -mt-1" title={displayItem.restaurantName}>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate italic" title={displayItem.restaurantName}>
                       {t('card.dishAt', { restaurant: displayItem.restaurantName })}
                   </p>
                 )}
 
                 {displayItem.itemType === 'product' && displayItem.purchaseLocation && (
-                  <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 -mt-1">
+                  <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
                     <BuildingStorefrontIcon className="w-4 h-4" />
                     <p className="truncate italic" title={displayItem.purchaseLocation}>{displayItem.purchaseLocation}</p>
                   </div>
@@ -221,45 +260,6 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
                 <p className="text-gray-600 dark:text-gray-400 text-sm leading-tight line-clamp-2">{displayItem.notes}</p>
             </div>
         )}
-
-      {/* Action Buttons */}
-      {!isPreview && (
-        <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
-            {displayItem.itemType === 'product' && (
-                 <button
-                  onClick={(e) => { e.stopPropagation(); onAddToShoppingList(item); }}
-                  className="text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
-                  aria-label={t('shoppingList.addAria', { name: displayItem.name })}
-              >
-                  <ShoppingBagIcon className="w-5 h-5" />
-              </button>
-            )}
-            {navigator.share && (
-              <button
-                  onClick={(e) => { e.stopPropagation(); handleShare(); }}
-                  className="text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
-                  aria-label={t('card.shareAria', { name: displayItem.name })}
-              >
-                  <ShareIcon className="w-5 h-5" />
-              </button>
-            )}
-            <button
-              onClick={(e) => { e.stopPropagation(); onEdit(item.id); }}
-              className="text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
-              aria-label={t('card.editAria', { name: displayItem.name })}
-            >
-              <PencilIcon className="w-5 h-5" />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
-              className="text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
-              aria-label={t('card.deleteAria', { name: displayItem.name })}
-            >
-              <TrashIcon className="w-5 h-5" />
-            </button>
-        </div>
-      )}
-
 
       {/* Custom scrollbar styling & line clamp */}
       <style>{`
