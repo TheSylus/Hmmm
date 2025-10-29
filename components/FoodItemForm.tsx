@@ -57,6 +57,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   const [tags, setTags] = useState('');
   // Product-specific
   const [nutriScore, setNutriScore] = useState<NutriScore | ''>('');
+  const [purchaseLocation, setPurchaseLocation] = useState('');
   const [ingredients, setIngredients] = useState<string[]>([]);
   const [allergens, setAllergens] = useState<string[]>([]);
   const [dietary, setDietary] = useState({
@@ -100,6 +101,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
       
       if(initialData.itemType === 'product') {
         setNutriScore(initialData.nutriScore || '');
+        setPurchaseLocation(initialData.purchaseLocation || '');
         setIngredients(initialData.ingredients || []);
         setAllergens(initialData.allergens || []);
         setDietary({
@@ -178,6 +180,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
     setNotes('');
     setImage(null);
     setNutriScore('');
+    setPurchaseLocation('');
     setTags('');
     setIngredients([]);
     setAllergens([]);
@@ -531,6 +534,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
         onSaveItem({
           ...commonData,
           nutriScore: nutriScore || undefined,
+          purchaseLocation: purchaseLocation || undefined,
           ingredients: ingredients.length > 0 ? ingredients : undefined,
           allergens: allergens.length > 0 ? allergens : undefined,
           isLactoseFree: dietary.isLactoseFree,
@@ -765,6 +769,16 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                     onChange={e => setTags(e.target.value)}
                     className={`w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3 transition-shadow ${highlightedFields.includes('tags') ? 'highlight-ai' : ''}`}
                 />
+                
+                {itemType === 'product' && (
+                    <input
+                        type="text"
+                        placeholder={t('form.placeholder.purchaseLocation')}
+                        value={purchaseLocation}
+                        onChange={e => setPurchaseLocation(e.target.value)}
+                        className="w-full bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3"
+                    />
+                )}
 
                 {itemType === 'product' && (
                   <>

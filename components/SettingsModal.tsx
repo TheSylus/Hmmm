@@ -40,10 +40,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, hasValidA
       aria-labelledby="settings-modal-title"
     >
       <div
-        className="relative bg-white dark:bg-gray-800 p-6 rounded-lg shadow-2xl w-full max-w-md max-h-[95vh] overflow-y-auto"
+        className="relative bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-md max-h-[95vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center mb-6">
+        {/* Header */}
+        <div className="flex justify-between items-center p-4 md:p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
             <h2 id="settings-modal-title" className="text-2xl font-bold text-gray-900 dark:text-white">{t('settings.title')}</h2>
             <button
               onClick={onClose}
@@ -54,7 +55,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, hasValidA
             </button>
         </div>
         
-        <div className="space-y-6">
+        {/* Scrollable Content */}
+        <div className="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto">
             {/* Language Selection */}
             <div>
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">{t('settings.language.title')}</h3>
@@ -180,7 +182,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, hasValidA
             </div>
         </div>
 
-        <div className="mt-8 text-center">
+        {/* Footer */}
+        <div className="p-4 md:p-6 text-center border-t border-gray-200 dark:border-gray-700 shrink-0">
             <button 
                 onClick={onClose}
                 className="w-full sm:w-auto px-10 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 transition-colors"

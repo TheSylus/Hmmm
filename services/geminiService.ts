@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { NutriScore } from "../types";
+import { FoodItem, NutriScore } from "../types";
 
 let ai: GoogleGenAI | null = null;
 const API_KEY_STORAGE_KEY = 'gemini-api-key';
@@ -248,5 +248,57 @@ export const findNearbyRestaurants = async (latitude: number, longitude: number)
         throw error;
     }
     throw new Error("Could not find nearby restaurants using AI.");
+  }
+};
+
+// A compacted version of FoodItem for sending to the AI
+type CompactFoodItem = Pick<
+  FoodItem,
+  'id' | 'name' | 'rating' | 'itemType' | 'notes' | 'tags' | 'nutriScore' | 'restaurantName' | 'cuisineType'
+>;
+
+export const performConversationalSearch = async (query: string, items: FoodItem[]): Promise<string[]> => {
+  if (!query || items.length === 0) {
+    return [];
+  }
+
+  // Create a more compact version of the items to send to the API, excluding large fields like images
+  const compactItems: CompactFoodItem[] = items.map(({ image, ingredients, allergens, isLactoseFree, isVegan, isGlutenFree, price, ...rest }) => rest);
+
+  try {
+    const gemini = getAiClient();
+    const response = await gemini.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: {
+        systemInstruction: "You are a smart search assistant for a food tracking app. Analyze the user's query and the provided JSON array of food items. Return a JSON array containing only the `id` strings of the items that match the query. The user might search by name, taste, memories, rating, or any other attribute in the data. If no items match, return an empty array.",
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            matchingIds: {
+              type: Type.ARRAY,
+              description: "An array of `id` strings for the food items that match the user's query.",
+              items: { type: Type.STRING },
+            },
+          },
+          required: ["matchingIds"],
+        },
+      },
+      contents: {
+        parts: [{ text: `User Query: "${query}"\n\nFood Items: ${JSON.stringify(compactItems)}` }]
+      },
+    });
+
+    const jsonString = response.text;
+    const result = JSON.parse(jsonString);
+    
+    return result.matchingIds || [];
+
+  } catch (error) {
+    console.error("Error performing conversational search:", error);
+    if (error instanceof Error) {
+        throw error;
+    }
+    throw new Error("Could not perform AI search.");
   }
 };

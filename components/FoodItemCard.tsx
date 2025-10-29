@@ -10,6 +10,7 @@ interface FoodItemCardProps {
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
   onImageClick: (imageUrl: string) => void;
+  onAddToShoppingList: (item: FoodItem) => void;
   isPreview?: boolean;
 }
 
@@ -42,7 +43,7 @@ const compressAndEncode = async (data: object): Promise<string> => {
     .replace(/=+$/, '');
 };
 
-export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEdit, onImageClick, isPreview = false }) => {
+export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEdit, onImageClick, onAddToShoppingList, isPreview = false }) => {
   const { t } = useTranslation();
   const displayItem = useTranslatedItem(item);
 
@@ -168,6 +169,13 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
                       {t('card.dishAt', { restaurant: displayItem.restaurantName })}
                   </p>
                 )}
+
+                {displayItem.itemType === 'product' && displayItem.purchaseLocation && (
+                  <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 -mt-1">
+                    <BuildingStorefrontIcon className="w-4 h-4" />
+                    <p className="truncate italic" title={displayItem.purchaseLocation}>{displayItem.purchaseLocation}</p>
+                  </div>
+                )}
                 
                 <div className="flex items-center my-1.5">
                     {[1, 2, 3, 4, 5].map(star => (
@@ -214,6 +222,15 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
       {/* Action Buttons */}
       {!isPreview && (
         <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
+            {displayItem.itemType === 'product' && (
+                 <button
+                  onClick={(e) => { e.stopPropagation(); onAddToShoppingList(item); }}
+                  className="text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors"
+                  aria-label={t('shoppingList.addAria', { name: displayItem.name })}
+              >
+                  <ShoppingBagIcon className="w-5 h-5" />
+              </button>
+            )}
             {navigator.share && (
               <button
                   onClick={(e) => { e.stopPropagation(); handleShare(); }}

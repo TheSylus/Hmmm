@@ -2,6 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { FoodItem, FoodItemType } from './types';
 import { FoodItemForm } from './components/FoodItemForm';
 import { FoodItemList } from './components/FoodItemList';
+import { Dashboard } from './components/Dashboard';
+import { ShoppingListModal } from './components/ShoppingListModal';
+import { FilterPanel } from './components/FilterPanel';
 import { DuplicateConfirmationModal } from './components/DuplicateConfirmationModal';
 import { ImageModal } from './components/ImageModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -10,7 +13,7 @@ import { ApiKeyModal } from './components/ApiKeyModal';
 import { ApiKeyBanner } from './components/ApiKeyBanner';
 import * as geminiService from './services/geminiService';
 import { useTranslation } from './i18n/index';
-import { PlusCircleIcon, SettingsIcon, ShoppingBagIcon, BuildingStorefrontIcon } from './components/Icons';
+import { PlusCircleIcon, SettingsIcon, ShoppingBagIcon, FunnelIcon, XMarkIcon, BuildingStorefrontIcon, MagnifyingGlassIcon } from './components/Icons';
 
 // Helper function to decode from URL-safe Base64 and decompress the data
 const decodeAndDecompress = async (base64UrlString: string): Promise<any> => {
@@ -35,18 +38,23 @@ const decodeAndDecompress = async (base64UrlString: string): Promise<any> => {
   return JSON.parse(decompressed);
 };
 
+export type SortKey = 'date_desc' | 'date_asc' | 'rating_desc' | 'rating_asc' | 'name_asc' | 'name_desc';
+export type RatingFilter = 'liked' | 'disliked' | 'all';
+export type TypeFilter = 'all' | 'product' | 'dish';
+
 
 const App: React.FC = () => {
   const { t } = useTranslation();
 
+  // Main Data State
   const [foodItems, setFoodItems] = useState<FoodItem[]>(() => {
     try {
       const savedItems = localStorage.getItem('foodItems');
       const parsedItems = savedItems ? JSON.parse(savedItems) : [];
-      // Data migration for items created before itemType was introduced
       return parsedItems.map((item: any) => ({
           ...item,
-          itemType: item.itemType || 'product', // Default to 'product'
+          itemType: item.itemType || 'product',
+          id: item.id || new Date().toISOString() + Math.random(), // Ensure ID exists
       }));
     } catch (error) {
       console.error("Could not parse food items from localStorage", error);
@@ -54,76 +62,98 @@ const App: React.FC = () => {
     }
   });
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [ratingFilter, setRatingFilter] = useState<'liked' | 'disliked' | 'all'>('all');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'product' | 'dish'>('all');
-  
+  const [shoppingList, setShoppingList] = useState<string[]>(() => {
+    try {
+      const savedList = localStorage.getItem('shoppingList');
+      return savedList ? JSON.parse(savedList) : [];
+    } catch (error) {
+      console.error("Could not parse shopping list from localStorage", error);
+      return [];
+    }
+  });
+
+  // UI/View State
+  const [activeView, setActiveView] = useState<'dashboard' | 'list'>('dashboard');
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<FoodItem | null>(null);
-
+  
+  // Filtering & Sorting State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [aiSearchQuery, setAiSearchQuery] = useState('');
+  const [aiSearchResults, setAiSearchResults] = useState<{ ids: string[] | null, error: string | null, isLoading: boolean }>({ ids: null, error: null, isLoading: false });
+  const [ratingFilter, setRatingFilter] = useState<RatingFilter>('all');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [sortBy, setSortBy] = useState<SortKey>('date_desc');
+  
+  // Modal & Overlay State
+  const [isFilterPanelVisible, setIsFilterPanelVisible] = useState(false);
   const [potentialDuplicates, setPotentialDuplicates] = useState<FoodItem[]>([]);
   const [itemToAdd, setItemToAdd] = useState<Omit<FoodItem, 'id'> | null>(null);
-  
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  
+  const [isShoppingListOpen, setIsShoppingListOpen] = useState(false);
   const [sharedItemToShow, setSharedItemToShow] = useState<Omit<FoodItem, 'id'> | null>(null);
-
-  const [hasValidApiKey, setHasValidApiKey] = useState<boolean | null>(null);
-  const [isBannerDismissed, setIsBannerDismissed] = useState(() => sessionStorage.getItem('apiKeyBannerDismissed') === 'true');
-  
   const [isItemTypeModalVisible, setIsItemTypeModalVisible] = useState(false);
   const [newItemType, setNewItemType] = useState<FoodItemType>('product');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  
+  // API Key State
+  const [hasValidApiKey, setHasValidApiKey] = useState<boolean | null>(null);
+  const [isBannerDismissed, setIsBannerDismissed] = useState(() => sessionStorage.getItem('apiKeyBannerDismissed') === 'true');
+
+  const isAnyFilterActive = searchTerm.trim() !== '' || ratingFilter !== 'all' || typeFilter !== 'all' || aiSearchQuery !== '';
 
   useEffect(() => {
     const keyExists = geminiService.hasValidApiKey();
     setHasValidApiKey(keyExists);
   }, []);
   
-  useEffect(() => {
-    // Check for shared item data in URL
-    const params = new URLSearchParams(window.location.search);
-    const shareData = params.get('s'); // 's' for 'share' (shortened)
-    if (shareData) {
-      const processShareData = async () => {
-        try {
-            const minified = await decodeAndDecompress(shareData);
-
-            // Reconstruct the FoodItem from the minified object
-            const reconstructedItem: Omit<FoodItem, 'id'> = {
-                name: minified.n || '',
-                rating: minified.r || 0,
-                itemType: minified.it || 'product',
-                notes: minified.no,
-                tags: minified.t,
-                // product specific
-                nutriScore: minified.ns,
-                ingredients: minified.i,
-                allergens: minified.a,
-                isLactoseFree: !!minified.lf,
-                isVegan: !!minified.v,
-                isGlutenFree: !!minified.gf,
-                // dish specific
-                restaurantName: minified.rn,
-                cuisineType: minified.ct,
-            };
-            
-            setSharedItemToShow(reconstructedItem);
-        } catch (error) {
-            console.error("Failed to parse shared item data from URL:", error);
-        }
-      };
-
-      processShareData();
-      // Clean the URL so the modal doesn't reappear on refresh
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
-
+  // LocalStorage Sync Effects
   useEffect(() => {
     localStorage.setItem('foodItems', JSON.stringify(foodItems));
   }, [foodItems]);
 
+  useEffect(() => {
+    localStorage.setItem('shoppingList', JSON.stringify(shoppingList));
+  }, [shoppingList]);
+
+  // Toast Message Timeout
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
+  // URL Share Data Handling
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shareData = params.get('s');
+    if (shareData) {
+      const processShareData = async () => {
+        try {
+            const minified = await decodeAndDecompress(shareData);
+            const reconstructedItem: Omit<FoodItem, 'id'> = {
+                name: minified.n || '', rating: minified.r || 0, itemType: minified.it || 'product', notes: minified.no, tags: minified.t,
+                nutriScore: minified.ns, ingredients: minified.i, allergens: minified.a, isLactoseFree: !!minified.lf, isVegan: !!minified.v, isGlutenFree: !!minified.gf,
+                restaurantName: minified.rn, cuisineType: minified.ct,
+            };
+            setSharedItemToShow(reconstructedItem);
+        } catch (error) { console.error("Failed to parse shared item data from URL:", error); }
+      };
+      processShareData();
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  // View Switching Logic
+  useEffect(() => {
+    if (searchTerm.trim() !== '' || ratingFilter !== 'all' || typeFilter !== 'all' || aiSearchResults.ids !== null) {
+      setActiveView('list');
+    }
+  }, [searchTerm, ratingFilter, typeFilter, aiSearchResults.ids]);
+
+  // Handlers
   const handleKeySave = (apiKey: string) => {
     geminiService.saveApiKey(apiKey);
     setHasValidApiKey(true);
@@ -136,37 +166,64 @@ const App: React.FC = () => {
 
   const handleSaveItem = (itemData: Omit<FoodItem, 'id'>): void => {
     if (editingItem) {
-        setFoodItems(prevItems =>
-            prevItems.map(item =>
-                item.id === editingItem.id ? { ...itemData, id: editingItem.id } : item
-            )
-        );
+        setFoodItems(prevItems => prevItems.map(item => item.id === editingItem.id ? { ...itemData, id: editingItem.id } : item));
         handleCancelForm();
         return;
     }
-
-    const duplicates = foodItems.filter(
-      existingItem => existingItem.name.trim().toLowerCase() === itemData.name.trim().toLowerCase()
-    );
-
+    const duplicates = foodItems.filter(item => item.name.trim().toLowerCase() === itemData.name.trim().toLowerCase());
     if (duplicates.length > 0) {
       setPotentialDuplicates(duplicates);
       setItemToAdd(itemData);
     } else {
-      const newItem: FoodItem = {
-        ...itemData,
-        id: new Date().toISOString(),
-      };
+      const newItem: FoodItem = { ...itemData, id: new Date().toISOString() };
       setFoodItems(prevItems => [newItem, ...prevItems]);
       handleCancelForm();
     }
   };
+  
+  const handleConversationalSearch = async (query: string) => {
+    setAiSearchQuery(query);
+    setIsFilterPanelVisible(false); // Close panel after starting search
+    setAiSearchResults({ ids: null, error: null, isLoading: true });
+    try {
+      const resultIds = await geminiService.performConversationalSearch(query, foodItems);
+      setAiSearchResults({ ids: resultIds, error: null, isLoading: false });
+    } catch (e) {
+      console.error(e);
+      setAiSearchResults({ ids: null, error: t('conversationalSearch.error'), isLoading: false });
+    }
+  };
+
+  const clearAiSearch = () => {
+    setAiSearchQuery('');
+    setAiSearchResults({ ids: null, error: null, isLoading: false });
+    if(!isAnyFilterActive) {
+      setActiveView('dashboard');
+    }
+  };
+
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setRatingFilter('all');
+    setTypeFilter('all');
+    clearAiSearch();
+    setActiveView('dashboard');
+  };
+
+  const handleAddToShoppingList = (item: FoodItem) => {
+    if (!shoppingList.includes(item.id)) {
+      setShoppingList(prev => [...prev, item.id]);
+      setToastMessage(t('shoppingList.addedToast', { name: item.name }));
+    }
+  };
+
+  const handleRemoveFromShoppingList = (itemId: string) => setShoppingList(prev => prev.filter(id => id !== itemId));
+  const handleClearShoppingList = () => setShoppingList([]);
 
   const handleAddSharedItem = () => {
     if (sharedItemToShow) {
-      // Re-use the main save logic to handle duplicate checks as well
       handleSaveItem(sharedItemToShow);
-      setSharedItemToShow(null); // This will close the shared item modal and the duplicate modal if it appears
+      setSharedItemToShow(null);
     }
   };
 
@@ -214,9 +271,18 @@ const App: React.FC = () => {
     setPotentialDuplicates([]);
   };
   
-  const filteredItems = useMemo(() => {
+  const filteredAndSortedItems = useMemo(() => {
+    let items = foodItems;
+
+    // 1. AI Search Filter (highest priority)
+    if (aiSearchResults.ids) {
+      const idSet = new Set(aiSearchResults.ids);
+      items = items.filter(item => idSet.has(item.id));
+    }
+
+    // 2. Standard Filters
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    return foodItems
+    items = items
       .filter(item => { // Type filter
         if (typeFilter === 'all') return true;
         return item.itemType === typeFilter;
@@ -228,103 +294,97 @@ const App: React.FC = () => {
         return true;
       })
       .filter(item =>  // Search term filter
-        item.name.toLowerCase().includes(lowerCaseSearchTerm) ||
-        item.notes?.toLowerCase().includes(lowerCaseSearchTerm) ||
-        item.tags?.join(' ').toLowerCase().includes(lowerCaseSearchTerm) ||
-        (item.itemType === 'dish' && (
-            item.restaurantName?.toLowerCase().includes(lowerCaseSearchTerm) ||
-            item.cuisineType?.toLowerCase().includes(lowerCaseSearchTerm)
-        ))
+        !searchTerm.trim() ? true : (
+          item.name.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.notes?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.tags?.join(' ').toLowerCase().includes(lowerCaseSearchTerm) ||
+          (item.itemType === 'dish' && (
+              item.restaurantName?.toLowerCase().includes(lowerCaseSearchTerm) ||
+              item.cuisineType?.toLowerCase().includes(lowerCaseSearchTerm)
+          ))
+        )
       );
-  }, [foodItems, searchTerm, ratingFilter, typeFilter]);
 
-  const isSearching = searchTerm.trim() !== '';
+    // 3. Sorting
+    return [...items].sort((a, b) => {
+      switch (sortBy) {
+        case 'date_asc': return new Date(a.id.split('+')[0]).getTime() - new Date(b.id.split('+')[0]).getTime();
+        case 'rating_desc': return b.rating - a.rating;
+        case 'rating_asc': return a.rating - b.rating;
+        case 'name_asc': return a.name.localeCompare(b.name);
+        case 'name_desc': return b.name.localeCompare(a.name);
+        case 'date_desc':
+        default:
+          return new Date(b.id.split('+')[0]).getTime() - new Date(a.id.split('+')[0]).getTime();
+      }
+    });
+  }, [foodItems, searchTerm, ratingFilter, typeFilter, sortBy, aiSearchResults.ids]);
 
-  if (hasValidApiKey === null) {
-    // Still loading the key status
-    return null;
-  }
+  if (hasValidApiKey === null) return null; // Loading state
+  if (hasValidApiKey === false) return <ApiKeyModal onKeySave={handleKeySave} />;
 
-  if (hasValidApiKey === false) {
-    return <ApiKeyModal onKeySave={handleKeySave} />;
-  }
+  const ActiveFilterPill: React.FC<{onDismiss: () => void, children: React.ReactNode}> = ({onDismiss, children}) => (
+    <div className="flex items-center gap-1 bg-indigo-100 text-indigo-800 dark:bg-indigo-600/50 dark:text-indigo-200 text-xs font-semibold px-2 py-1 rounded-full">
+        <span>{children}</span>
+        <button onClick={onDismiss} className="p-0.5 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-500/50">
+            <XMarkIcon className="w-3 h-3"/>
+        </button>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 font-sans transition-colors duration-300">
        {!hasValidApiKey && !isBannerDismissed && <ApiKeyBanner onDismiss={handleDismissBanner} onOpenSettings={() => setIsSettingsOpen(true)} />}
-      <header className="bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm shadow-md dark:shadow-lg sticky top-0 z-20">
-          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-              <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-green-500 dark:from-indigo-400 dark:to-green-400">
-                  {t('header.title')}
-              </h1>
-              <div className="flex items-center gap-2">
-                  {!isFormVisible && (
-                      <div className="hidden sm:flex items-center gap-2">
+      
+       <header className="bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm shadow-md dark:shadow-lg sticky top-0 z-20">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex justify-between items-center gap-4">
+                <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-green-500 dark:from-indigo-400 dark:to-green-400 shrink-0">
+                    {t('header.title')}
+                </h1>
+                <div className="flex items-center gap-2">
+                    <button onClick={() => setIsShoppingListOpen(true)} className="relative p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" aria-label={t('header.shoppingListAria')}>
+                        <ShoppingBagIcon className="w-7 h-7 text-gray-600 dark:text-gray-300" />
+                        {shoppingList.length > 0 && <span className="absolute top-0 right-0 block h-4 w-4 rounded-full bg-red-500 text-white text-xs font-bold ring-2 ring-white dark:ring-gray-800">{shoppingList.length}</span>}
+                    </button>
+                    <button onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" aria-label={t('settings.title')}>
+                        <SettingsIcon className="w-7 h-7 text-gray-600 dark:text-gray-300" />
+                    </button>
+                </div>
+            </div>
+            {!isFormVisible && (
+                <div className="mt-4 space-y-3">
+                    <div className="flex gap-2 items-center">
+                       <div className="relative flex-1">
                           <input
-                              type="text"
+                              type="search"
                               placeholder={t('header.searchPlaceholder')}
                               value={searchTerm}
                               onChange={e => setSearchTerm(e.target.value)}
-                              className="w-48 bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-2"
+                              className="w-full bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-full shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-2 pl-10 pr-4 transition"
                           />
-                          <select
-                              value={typeFilter}
-                              onChange={e => setTypeFilter(e.target.value as any)}
-                              className="bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-2"
-                          >
-                              <option value="all">{t('header.filter.type.all')}</option>
-                              <option value="product">{t('header.filter.type.products')}</option>
-                              <option value="dish">{t('header.filter.type.dishes')}</option>
-                          </select>
-                          <select
-                              value={ratingFilter}
-                              onChange={e => setRatingFilter(e.target.value as any)}
-                              className="bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-2"
-                          >
-                              <option value="all">{t('header.filter.all')}</option>
-                              <option value="liked">{t('header.filter.liked')}</option>
-                              <option value="disliked">{t('header.filter.disliked')}</option>
-                          </select>
-                      </div>
-                  )}
-                  <button onClick={() => setIsSettingsOpen(true)} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" aria-label={t('settings.title')}>
-                      <SettingsIcon className="w-7 h-7 text-gray-600 dark:text-gray-300" />
-                  </button>
-              </div>
+                          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                              <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                          </div>
+                       </div>
+                      <button onClick={() => setIsFilterPanelVisible(true)} className="flex-shrink-0 flex items-center gap-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-2 px-4 rounded-md transition-colors">
+                          <FunnelIcon className="w-5 h-5" />
+                          <span className="hidden md:inline">{t('header.filter.button')}</span>
+                      </button>
+                    </div>
+
+                    {isAnyFilterActive && (
+                        <div className="flex items-center gap-2 flex-wrap pt-2">
+                            {searchTerm.trim() && <ActiveFilterPill onDismiss={() => setSearchTerm('')}>{t('header.filter.active.search', { term: searchTerm })}</ActiveFilterPill>}
+                            {aiSearchQuery && <ActiveFilterPill onDismiss={clearAiSearch}>{t('header.filter.active.aiSearch', { term: aiSearchQuery })}</ActiveFilterPill>}
+                            {typeFilter !== 'all' && <ActiveFilterPill onDismiss={() => setTypeFilter('all')}>{t(`header.filter.active.type.${typeFilter}`)}</ActiveFilterPill>}
+                            {ratingFilter !== 'all' && <ActiveFilterPill onDismiss={() => setRatingFilter('all')}>{t(`header.filter.active.rating.${ratingFilter}`)}</ActiveFilterPill>}
+                            <button onClick={clearAllFilters} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">{t('header.filter.clearAll')}</button>
+                        </div>
+                    )}
+                </div>
+            )}
           </div>
-          {!isFormVisible && (
-              <div className="container mx-auto px-4 pb-4 sm:hidden">
-                  <div className="flex flex-col gap-2">
-                      <input
-                          type="text"
-                          placeholder={t('header.searchPlaceholder')}
-                          value={searchTerm}
-                          onChange={e => setSearchTerm(e.target.value)}
-                          className="w-full bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-2"
-                      />
-                      <div className="grid grid-cols-2 gap-2">
-                        <select
-                            value={typeFilter}
-                            onChange={e => setTypeFilter(e.target.value as any)}
-                            className="w-full bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-2"
-                        >
-                            <option value="all">{t('header.filter.type.all')}</option>
-                            <option value="product">{t('header.filter.type.products')}</option>
-                            <option value="dish">{t('header.filter.type.dishes')}</option>
-                        </select>
-                        <select
-                            value={ratingFilter}
-                            onChange={e => setRatingFilter(e.target.value as any)}
-                            className="w-full bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-2"
-                        >
-                            <option value="all">{t('header.filter.all')}</option>
-                            <option value="liked">{t('header.filter.liked')}</option>
-                            <option value="disliked">{t('header.filter.disliked')}</option>
-                        </select>
-                      </div>
-                  </div>
-              </div>
-          )}
       </header>
       
       <main className="container mx-auto p-4 md:p-8">
@@ -335,34 +395,37 @@ const App: React.FC = () => {
                 initialData={editingItem}
                 itemType={editingItem?.itemType || newItemType}
             />
+        ) : activeView === 'dashboard' ? (
+           <Dashboard 
+              items={foodItems}
+              onViewAll={() => setActiveView('list')}
+              onAddNew={handleAddNewClick}
+              onEdit={handleStartEdit}
+              onDelete={handleDeleteItem}
+              onImageClick={setSelectedImage}
+              onAddToShoppingList={handleAddToShoppingList}
+           />
         ) : (
-            <div className="text-center mb-8">
-                <button
-                    onClick={handleAddNewClick}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-8 rounded-lg shadow-lg transition-transform transform hover:scale-105 flex items-center justify-center gap-3 mx-auto"
-                >
-                    <PlusCircleIcon className="w-8 h-8" />
-                    <span className="text-xl">{t('form.addNewButton')}</span>
-                </button>
-            </div>
-        )}
-        
-        {!isFormVisible && (
           <>
-            {isSearching ? (
-              <div className="my-8">
-                <h2 className="text-2xl font-bold text-gray-700 dark:text-gray-300">
-                  {t('list.resultsFor', { searchTerm: searchTerm })}
-                </h2>
+             {aiSearchResults.ids !== null && (
+              <div className="my-6 p-4 bg-indigo-50 dark:bg-gray-800 rounded-lg flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-indigo-800 dark:text-indigo-200">{t('conversationalSearch.resultsTitle')}</h2>
+                    <p className="text-sm text-indigo-600 dark:text-indigo-300 italic">"{aiSearchQuery}"</p>
+                  </div>
+                  <button onClick={clearAiSearch} className="flex items-center gap-2 text-sm bg-indigo-200 dark:bg-indigo-600/50 hover:bg-indigo-300 dark:hover:bg-indigo-600/80 text-indigo-800 dark:text-indigo-100 font-semibold py-1.5 px-3 rounded-full transition">
+                    <XMarkIcon className="w-4 h-4" />
+                    {t('conversationalSearch.clear')}
+                  </button>
               </div>
-            ) : (
-              foodItems.length > 0 && <div className="border-t border-gray-200 dark:border-gray-700 my-8"></div>
             )}
+            {aiSearchResults.error && <p className="text-red-500 dark:text-red-400 text-center my-4">{aiSearchResults.error}</p>}
             <FoodItemList 
-              items={filteredItems} 
+              items={filteredAndSortedItems} 
               onDelete={handleDeleteItem} 
               onEdit={handleStartEdit}
-              onImageClick={setSelectedImage} 
+              onImageClick={setSelectedImage}
+              onAddToShoppingList={handleAddToShoppingList}
             />
           </>
         )}
@@ -372,24 +435,38 @@ const App: React.FC = () => {
         <p>{t('footer.text')}</p>
       </footer>
 
-      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} hasValidApiKey={!!hasValidApiKey} setHasValidApiKey={setHasValidApiKey} />}
+      {toastMessage && (
+         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 text-sm font-semibold py-2 px-4 rounded-full shadow-lg animate-fade-in-out">
+            {toastMessage}
+        </div>
+      )}
 
-      {potentialDuplicates.length > 0 && itemToAdd && (
-        <DuplicateConfirmationModal
-          items={potentialDuplicates}
-          itemName={itemToAdd.name}
-          onConfirm={handleConfirmDuplicateAdd}
-          onCancel={handleCancelDuplicateAdd}
-          onImageClick={setSelectedImage}
+      {isFilterPanelVisible && (
+        <FilterPanel 
+            onClose={() => setIsFilterPanelVisible(false)}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            typeFilter={typeFilter}
+            setTypeFilter={setTypeFilter}
+            ratingFilter={ratingFilter}
+            setRatingFilter={setRatingFilter}
+            sortBy={sortBy}
+            setSortBy={setSortBy}
+            onReset={clearAllFilters}
+            onAiSearch={handleConversationalSearch}
+            isAiSearchLoading={aiSearchResults.isLoading}
         />
       )}
 
+      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} hasValidApiKey={!!hasValidApiKey} setHasValidApiKey={setHasValidApiKey} />}
+      {isShoppingListOpen && <ShoppingListModal items={foodItems} shoppingListItems={shoppingList} onRemove={handleRemoveFromShoppingList} onClear={handleClearShoppingList} onClose={() => setIsShoppingListOpen(false)} />}
+
+      {potentialDuplicates.length > 0 && itemToAdd && (
+        <DuplicateConfirmationModal items={potentialDuplicates} itemName={itemToAdd.name} onConfirm={handleConfirmDuplicateAdd} onCancel={handleCancelDuplicateAdd} onImageClick={setSelectedImage} />
+      )}
+
       {isItemTypeModalVisible && (
-        <div 
-            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 animate-fade-in" 
-            onClick={() => setIsItemTypeModalVisible(false)}
-            role="dialog" aria-modal="true"
-        >
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 animate-fade-in" onClick={() => setIsItemTypeModalVisible(false)} role="dialog" aria-modal="true">
             <div className="relative bg-white dark:bg-gray-800 p-6 rounded-lg shadow-2xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white text-center mb-6">{t('modal.itemType.title')}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -407,54 +484,32 @@ const App: React.FC = () => {
       )}
 
       {sharedItemToShow && (
-        <div 
-            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 animate-fade-in" 
-            onClick={() => setSharedItemToShow(null)}
-            role="dialog"
-            aria-modal="true"
-        >
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 animate-fade-in" onClick={() => setSharedItemToShow(null)} role="dialog" aria-modal="true">
             <div className="relative bg-white dark:bg-gray-900 p-6 rounded-lg shadow-2xl max-w-lg w-full flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('modal.shared.title')}</h2>
                 <p className="text-gray-600 dark:text-gray-400 mb-4">{t('modal.shared.description')}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-500 italic -mt-2 mb-4">{t('modal.shared.summaryNotice')}</p>
-                
                 <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 flex-1 overflow-y-auto">
-                    <SharedItemDetailView
-                        item={sharedItemToShow}
-                        onImageClick={setSelectedImage}
-                    />
+                    <SharedItemDetailView item={sharedItemToShow} onImageClick={setSelectedImage} />
                 </div>
-
                 <div className="mt-6 flex flex-col sm:flex-row justify-end gap-4 border-t border-gray-200 dark:border-gray-700 pt-6">
-                <button
-                    onClick={() => setSharedItemToShow(null)}
-                    className="w-full sm:w-auto px-6 py-2 bg-gray-500 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-700 text-white rounded-md font-semibold transition-colors"
-                >
-                    {t('modal.shared.close')}
-                </button>
-                <button
-                    onClick={handleAddSharedItem}
-                    className="w-full sm:w-auto px-8 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 transition-colors"
-                >
-                    {t('modal.shared.addToList')}
-                </button>
+                <button onClick={() => setSharedItemToShow(null)} className="w-full sm:w-auto px-6 py-2 bg-gray-500 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-700 text-white rounded-md font-semibold transition-colors">{t('modal.shared.close')}</button>
+                <button onClick={handleAddSharedItem} className="w-full sm:w-auto px-8 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 transition-colors">{t('modal.shared.addToList')}</button>
                 </div>
             </div>
-             <style>{`
-                @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-                }
-                .animate-fade-in {
-                animation: fadeIn 0.2s ease-out;
-                }
-            `}</style>
         </div>
       )}
-
-      {selectedImage && (
-        <ImageModal imageUrl={selectedImage} onClose={() => setSelectedImage(null)} />
-      )}
+      
+      {selectedImage && <ImageModal imageUrl={selectedImage} onClose={() => setSelectedImage(null)} />}
+      <style>{`
+          @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+          .animate-fade-in { animation: fadeIn 0.2s ease-out; }
+          @keyframes fade-in-out {
+              0%, 100% { opacity: 0; transform: translateY(20px) translateX(-50%); }
+              10%, 90% { opacity: 1; transform: translateY(0) translateX(-50%); }
+          }
+          .animate-fade-in-out { animation: fade-in-out 3s ease-in-out; }
+      `}</style>
     </div>
   );
 };

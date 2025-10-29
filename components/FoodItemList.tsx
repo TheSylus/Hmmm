@@ -8,9 +8,10 @@ interface FoodItemListProps {
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
   onImageClick: (imageUrl: string) => void;
+  onAddToShoppingList: (item: FoodItem) => void;
 }
 
-export const FoodItemList: React.FC<FoodItemListProps> = ({ items, onDelete, onEdit, onImageClick }) => {
+export const FoodItemList: React.FC<FoodItemListProps> = ({ items, onDelete, onEdit, onImageClick, onAddToShoppingList }) => {
   const { t } = useTranslation();
 
   if (items.length === 0) {
@@ -31,6 +32,7 @@ export const FoodItemList: React.FC<FoodItemListProps> = ({ items, onDelete, onE
           onDelete={onDelete} 
           onEdit={onEdit}
           onImageClick={onImageClick}
+          onAddToShoppingList={onAddToShoppingList}
         />
       ))}
     </div>

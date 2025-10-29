@@ -62,6 +62,8 @@ export const DuplicateConfirmationModal: React.FC<DuplicateConfirmationModalProp
                     onDelete={() => {}} // No delete action in this context
                     onEdit={() => {}} // No edit action in this context
                     onImageClick={onImageClick}
+                    onAddToShoppingList={() => {}} // No action in this context
+                    isPreview={true}
                 />
             ))}
         </div>
