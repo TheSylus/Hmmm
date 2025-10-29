@@ -9,10 +9,9 @@ interface DuplicateConfirmationModalProps {
   itemName: string;
   onConfirm: () => void;
   onCancel: () => void;
-  onImageClick: (imageUrl: string) => void;
 }
 
-export const DuplicateConfirmationModal: React.FC<DuplicateConfirmationModalProps> = ({ items, itemName, onConfirm, onCancel, onImageClick }) => {
+export const DuplicateConfirmationModal: React.FC<DuplicateConfirmationModalProps> = ({ items, itemName, onConfirm, onCancel }) => {
   const { t, language } = useTranslation();
   const [translatedItemName, setTranslatedItemName] = useState(itemName);
 
@@ -61,7 +60,7 @@ export const DuplicateConfirmationModal: React.FC<DuplicateConfirmationModalProp
                     item={item}
                     onDelete={() => {}} // No delete action in this context
                     onEdit={() => {}} // No edit action in this context
-                    onImageClick={onImageClick}
+                    onViewDetails={() => {}} // No details view in this context
                     onAddToShoppingList={() => {}} // No action in this context
                     isPreview={true}
                 />

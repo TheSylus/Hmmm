@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { FoodItem, NutriScore } from '../types';
 import { StarIcon, TrashIcon, PencilIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon, ShareIcon, ShoppingBagIcon, BuildingStorefrontIcon } from './Icons';
 import { AllergenDisplay } from './AllergenDisplay';
@@ -9,7 +9,7 @@ interface FoodItemCardProps {
   item: FoodItem;
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
-  onImageClick: (imageUrl: string) => void;
+  onViewDetails: (item: FoodItem) => void;
   onAddToShoppingList: (item: FoodItem) => void;
   isPreview?: boolean;
 }
@@ -43,11 +43,33 @@ const compressAndEncode = async (data: object): Promise<string> => {
     .replace(/=+$/, '');
 };
 
-export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEdit, onImageClick, onAddToShoppingList, isPreview = false }) => {
+const DietaryIcon: React.FC<{ type: 'lactoseFree' | 'vegan' | 'glutenFree', className?: string }> = ({ type, className }) => {
+    const { t } = useTranslation();
+    const icons = {
+        lactoseFree: <LactoseFreeIcon className={`${className} text-blue-600 dark:text-blue-400`} />,
+        vegan: <VeganIcon className={`${className}`} />,
+        glutenFree: <GlutenFreeIcon className={`${className}`} />,
+    };
+    const tooltips = {
+        lactoseFree: t('card.lactoseFreeTooltip'),
+        vegan: t('card.veganTooltip'),
+        glutenFree: t('card.glutenFreeTooltip'),
+    };
+    return (
+        <div className="relative group flex items-center justify-center">
+            {icons[type]}
+            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                {tooltips[type]}
+            </span>
+        </div>
+    );
+}
+
+export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEdit, onViewDetails, onAddToShoppingList, isPreview = false }) => {
   const { t } = useTranslation();
   const displayItem = useTranslatedItem(item);
 
-  const handleShare = async () => {
+  const handleShare = useCallback(async () => {
     if (!item || !displayItem) return;
 
     try {
@@ -69,6 +91,7 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
       } else {
           minified.rn = dataToShare.restaurantName;
           minified.ct = dataToShare.cuisineType;
+          minified.p = dataToShare.price;
       }
       
       // Clean up undefined/null values and empty arrays to make the JSON string even smaller
@@ -107,7 +130,7 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
         console.error('Share failed:', err);
       }
     }
-  };
+  }, [item, displayItem, t]);
 
   if (!displayItem) {
     return null; // Render nothing if the item is not available
@@ -115,30 +138,13 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
   
   const hasDietaryOrAllergens = displayItem.itemType === 'product' && (displayItem.isLactoseFree || displayItem.isVegan || displayItem.isGlutenFree || (displayItem.allergens && displayItem.allergens.length > 0));
   const hasTags = displayItem.tags && displayItem.tags.length > 0;
-
-  const DietaryIcon: React.FC<{ type: 'lactoseFree' | 'vegan' | 'glutenFree', className?: string }> = ({ type, className }) => {
-      const icons = {
-          lactoseFree: <LactoseFreeIcon className={`${className} text-blue-600 dark:text-blue-400`} />,
-          vegan: <VeganIcon className={`${className}`} />,
-          glutenFree: <GlutenFreeIcon className={`${className}`} />,
-      };
-      const tooltips = {
-          lactoseFree: t('card.lactoseFreeTooltip'),
-          vegan: t('card.veganTooltip'),
-          glutenFree: t('card.glutenFreeTooltip'),
-      };
-      return (
-          <div className="relative group flex items-center justify-center">
-              {icons[type]}
-              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                  {tooltips[type]}
-              </span>
-          </div>
-      );
-  }
+  const isClickable = !isPreview && onViewDetails;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md dark:shadow-lg flex flex-col p-4 transition-all duration-300 hover:shadow-xl dark:hover:shadow-2xl hover:-translate-y-1 relative">
+    <div 
+        className={`bg-white dark:bg-gray-800 rounded-lg shadow-md dark:shadow-lg flex flex-col p-4 transition-all duration-300 hover:shadow-xl dark:hover:shadow-2xl hover:-translate-y-1 relative ${isClickable ? 'cursor-pointer' : ''}`}
+        onClick={() => isClickable && onViewDetails(item)}
+    >
         <div className="absolute top-3 left-3 group z-10">
             {displayItem.itemType === 'dish' ? (
                 <BuildingStorefrontIcon className="w-5 h-5 text-gray-400 dark:text-gray-500" />
@@ -149,19 +155,16 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
                 {t(displayItem.itemType === 'dish' ? 'card.dishTooltip' : 'card.productTooltip')}
             </span>
         </div>
-        <div className="flex items-start gap-4">
+        <div className="flex flex-row items-start gap-4">
             {/* Image Thumbnail */}
             {displayItem.image && (
-                <div 
-                className="w-24 h-24 md:w-28 md:h-28 flex-shrink-0 rounded-md overflow-hidden cursor-pointer group"
-                onClick={() => displayItem.image && onImageClick(displayItem.image)}
-                >
-                <img src={displayItem.image} alt={displayItem.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <div className="w-24 h-24 flex-shrink-0 rounded-md overflow-hidden group">
+                    <img src={displayItem.image} alt={displayItem.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                 </div>
             )}
 
             {/* Core Details Section */}
-            <div className={`flex-1 flex flex-col justify-start self-stretch overflow-hidden ${!displayItem.image ? 'pl-8' : ''}`}>
+            <div className={`flex-1 flex flex-col justify-start overflow-hidden ${!displayItem.image ? 'pl-8' : ''}`}>
                 <h3 className={`text-lg font-bold text-gray-900 dark:text-white truncate ${isPreview ? '' : 'pr-20'}`} title={displayItem.name}>{displayItem.name}</h3>
                 
                 {displayItem.itemType === 'dish' && displayItem.restaurantName && (
@@ -215,7 +218,7 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
         {/* Notes Section */}
         {displayItem.notes && (
             <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700/50">
-                <p className="text-gray-600 dark:text-gray-400 text-sm leading-tight">{displayItem.notes}</p>
+                <p className="text-gray-600 dark:text-gray-400 text-sm leading-tight line-clamp-2">{displayItem.notes}</p>
             </div>
         )}
 
@@ -258,7 +261,7 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
       )}
 
 
-      {/* Custom scrollbar styling */}
+      {/* Custom scrollbar styling & line clamp */}
       <style>{`
         .scrollbar-hide::-webkit-scrollbar {
           display: none;
@@ -266,6 +269,12 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
         .scrollbar-hide {
           -ms-overflow-style: none;
           scrollbar-width: none;
+        }
+        .line-clamp-2 {
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
         }
       `}</style>
     </div>

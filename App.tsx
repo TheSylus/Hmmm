@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { FoodItem, FoodItemType } from './types';
 import { FoodItemForm } from './components/FoodItemForm';
 import { FoodItemList } from './components/FoodItemList';
@@ -8,8 +8,8 @@ import { FilterPanel } from './components/FilterPanel';
 import { DuplicateConfirmationModal } from './components/DuplicateConfirmationModal';
 import { ImageModal } from './components/ImageModal';
 import { SettingsModal } from './components/SettingsModal';
-import { SharedItemDetailView } from './components/SharedItemDetailView';
-import { ApiKeyModal } from './components/ApiKeyModal';
+import { FoodItemDetailView } from './components/FoodItemDetailView';
+import { FoodItemDetailModal } from './components/FoodItemDetailModal';
 import { ApiKeyBanner } from './components/ApiKeyBanner';
 import * as geminiService from './services/geminiService';
 import { useTranslation } from './i18n/index';
@@ -42,6 +42,14 @@ export type SortKey = 'date_desc' | 'date_asc' | 'rating_desc' | 'rating_asc' | 
 export type RatingFilter = 'liked' | 'disliked' | 'all';
 export type TypeFilter = 'all' | 'product' | 'dish';
 
+const ActiveFilterPill: React.FC<{onDismiss: () => void, children: React.ReactNode}> = ({onDismiss, children}) => (
+  <div className="flex items-center gap-1 bg-indigo-100 text-indigo-800 dark:bg-indigo-600/50 dark:text-indigo-200 text-xs font-semibold px-2 py-1 rounded-full">
+      <span>{children}</span>
+      <button onClick={onDismiss} className="p-0.5 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-500/50">
+          <XMarkIcon className="w-3 h-3"/>
+      </button>
+  </div>
+);
 
 const App: React.FC = () => {
   const { t } = useTranslation();
@@ -90,6 +98,7 @@ const App: React.FC = () => {
   const [potentialDuplicates, setPotentialDuplicates] = useState<FoodItem[]>([]);
   const [itemToAdd, setItemToAdd] = useState<Omit<FoodItem, 'id'> | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [detailItem, setDetailItem] = useState<FoodItem | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShoppingListOpen, setIsShoppingListOpen] = useState(false);
   const [sharedItemToShow, setSharedItemToShow] = useState<Omit<FoodItem, 'id'> | null>(null);
@@ -98,10 +107,10 @@ const App: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
   // API Key State
-  const [hasValidApiKey, setHasValidApiKey] = useState<boolean | null>(null);
+  const [hasValidApiKey, setHasValidApiKey] = useState<boolean>(true);
   const [isBannerDismissed, setIsBannerDismissed] = useState(() => sessionStorage.getItem('apiKeyBannerDismissed') === 'true');
 
-  const isAnyFilterActive = searchTerm.trim() !== '' || ratingFilter !== 'all' || typeFilter !== 'all' || aiSearchQuery !== '';
+  const isAnyFilterActive = useMemo(() => searchTerm.trim() !== '' || ratingFilter !== 'all' || typeFilter !== 'all' || aiSearchQuery !== '', [searchTerm, ratingFilter, typeFilter, aiSearchQuery]);
 
   useEffect(() => {
     const keyExists = geminiService.hasValidApiKey();
@@ -125,6 +134,11 @@ const App: React.FC = () => {
     }
   }, [toastMessage]);
 
+  const handleCancelForm = useCallback(() => {
+      setIsFormVisible(false);
+      setEditingItem(null);
+  }, []);
+
   // URL Share Data Handling
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -136,7 +150,7 @@ const App: React.FC = () => {
             const reconstructedItem: Omit<FoodItem, 'id'> = {
                 name: minified.n || '', rating: minified.r || 0, itemType: minified.it || 'product', notes: minified.no, tags: minified.t,
                 nutriScore: minified.ns, ingredients: minified.i, allergens: minified.a, isLactoseFree: !!minified.lf, isVegan: !!minified.v, isGlutenFree: !!minified.gf,
-                restaurantName: minified.rn, cuisineType: minified.ct,
+                restaurantName: minified.rn, cuisineType: minified.ct, price: minified.p,
             };
             setSharedItemToShow(reconstructedItem);
         } catch (error) { console.error("Failed to parse shared item data from URL:", error); }
@@ -154,17 +168,12 @@ const App: React.FC = () => {
   }, [searchTerm, ratingFilter, typeFilter, aiSearchResults.ids]);
 
   // Handlers
-  const handleKeySave = (apiKey: string) => {
-    geminiService.saveApiKey(apiKey);
-    setHasValidApiKey(true);
-  };
-
-  const handleDismissBanner = () => {
+  const handleDismissBanner = useCallback(() => {
     setIsBannerDismissed(true);
     sessionStorage.setItem('apiKeyBannerDismissed', 'true');
-  };
+  }, []);
 
-  const handleSaveItem = (itemData: Omit<FoodItem, 'id'>): void => {
+  const handleSaveItem = useCallback((itemData: Omit<FoodItem, 'id'>): void => {
     if (editingItem) {
         setFoodItems(prevItems => prevItems.map(item => item.id === editingItem.id ? { ...itemData, id: editingItem.id } : item));
         handleCancelForm();
@@ -179,9 +188,9 @@ const App: React.FC = () => {
       setFoodItems(prevItems => [newItem, ...prevItems]);
       handleCancelForm();
     }
-  };
+  }, [editingItem, foodItems, handleCancelForm]);
   
-  const handleConversationalSearch = async (query: string) => {
+  const handleConversationalSearch = useCallback(async (query: string) => {
     setAiSearchQuery(query);
     setIsFilterPanelVisible(false); // Close panel after starting search
     setAiSearchResults({ ids: null, error: null, isLoading: true });
@@ -192,71 +201,74 @@ const App: React.FC = () => {
       console.error(e);
       setAiSearchResults({ ids: null, error: t('conversationalSearch.error'), isLoading: false });
     }
-  };
+  }, [foodItems, t]);
 
-  const clearAiSearch = () => {
+  const clearAiSearch = useCallback(() => {
     setAiSearchQuery('');
     setAiSearchResults({ ids: null, error: null, isLoading: false });
     if(!isAnyFilterActive) {
       setActiveView('dashboard');
     }
-  };
+  }, [isAnyFilterActive]);
 
-  const clearAllFilters = () => {
+  const clearAllFilters = useCallback(() => {
     setSearchTerm('');
     setRatingFilter('all');
     setTypeFilter('all');
     clearAiSearch();
     setActiveView('dashboard');
-  };
+  }, [clearAiSearch]);
 
-  const handleAddToShoppingList = (item: FoodItem) => {
-    if (!shoppingList.includes(item.id)) {
-      setShoppingList(prev => [...prev, item.id]);
-      setToastMessage(t('shoppingList.addedToast', { name: item.name }));
-    }
-  };
+  const handleAddToShoppingList = useCallback((item: FoodItem) => {
+    setShoppingList(prev => {
+        if (!prev.includes(item.id)) {
+            setToastMessage(t('shoppingList.addedToast', { name: item.name }));
+            return [...prev, item.id];
+        }
+        return prev;
+    });
+  }, [t]);
 
-  const handleRemoveFromShoppingList = (itemId: string) => setShoppingList(prev => prev.filter(id => id !== itemId));
-  const handleClearShoppingList = () => setShoppingList([]);
+  const handleRemoveFromShoppingList = useCallback((itemId: string) => setShoppingList(prev => prev.filter(id => id !== itemId)), []);
+  const handleClearShoppingList = useCallback(() => setShoppingList([]), []);
 
-  const handleAddSharedItem = () => {
+  const handleAddSharedItem = useCallback(() => {
     if (sharedItemToShow) {
       handleSaveItem(sharedItemToShow);
       setSharedItemToShow(null);
     }
-  };
+  }, [sharedItemToShow, handleSaveItem]);
 
-  const handleStartEdit = (id: string) => {
+  const handleViewDetails = useCallback((item: FoodItem) => {
+    setDetailItem(item);
+  }, []);
+
+  const handleStartEdit = useCallback((id: string) => {
     const itemToEdit = foodItems.find(item => item.id === id);
     if (itemToEdit) {
+      setDetailItem(null); // Close detail view if open
       setEditingItem(itemToEdit);
       setIsFormVisible(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  };
+  }, [foodItems]);
   
-  const handleAddNewClick = () => {
+  const handleAddNewClick = useCallback(() => {
     setEditingItem(null);
     setIsItemTypeModalVisible(true);
-  };
+  }, []);
 
-  const handleSelectType = (type: FoodItemType) => {
+  const handleSelectType = useCallback((type: FoodItemType) => {
     setNewItemType(type);
     setIsItemTypeModalVisible(false);
     setIsFormVisible(true);
-  };
+  }, []);
   
-  const handleCancelForm = () => {
-      setIsFormVisible(false);
-      setEditingItem(null);
-  };
-
-  const handleDeleteItem = (id: string) => {
+  const handleDeleteItem = useCallback((id: string) => {
     setFoodItems(prevItems => prevItems.filter(item => item.id !== id));
-  };
+  }, []);
   
-  const handleConfirmDuplicateAdd = () => {
+  const handleConfirmDuplicateAdd = useCallback(() => {
     if (itemToAdd) {
       const newItem: FoodItem = { ...itemToAdd, id: new Date().toISOString() };
       setFoodItems(prevItems => [newItem, ...prevItems]);
@@ -264,12 +276,12 @@ const App: React.FC = () => {
     setItemToAdd(null);
     setPotentialDuplicates([]);
     handleCancelForm();
-  };
+  }, [itemToAdd, handleCancelForm]);
 
-  const handleCancelDuplicateAdd = () => {
+  const handleCancelDuplicateAdd = useCallback(() => {
     setItemToAdd(null);
     setPotentialDuplicates([]);
-  };
+  }, []);
   
   const filteredAndSortedItems = useMemo(() => {
     let items = foodItems;
@@ -320,18 +332,6 @@ const App: React.FC = () => {
     });
   }, [foodItems, searchTerm, ratingFilter, typeFilter, sortBy, aiSearchResults.ids]);
 
-  if (hasValidApiKey === null) return null; // Loading state
-  if (hasValidApiKey === false) return <ApiKeyModal onKeySave={handleKeySave} />;
-
-  const ActiveFilterPill: React.FC<{onDismiss: () => void, children: React.ReactNode}> = ({onDismiss, children}) => (
-    <div className="flex items-center gap-1 bg-indigo-100 text-indigo-800 dark:bg-indigo-600/50 dark:text-indigo-200 text-xs font-semibold px-2 py-1 rounded-full">
-        <span>{children}</span>
-        <button onClick={onDismiss} className="p-0.5 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-500/50">
-            <XMarkIcon className="w-3 h-3"/>
-        </button>
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 font-sans transition-colors duration-300">
        {!hasValidApiKey && !isBannerDismissed && <ApiKeyBanner onDismiss={handleDismissBanner} onOpenSettings={() => setIsSettingsOpen(true)} />}
@@ -339,7 +339,7 @@ const App: React.FC = () => {
        <header className="bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm shadow-md dark:shadow-lg sticky top-0 z-20">
           <div className="container mx-auto px-4 py-4">
             <div className="flex justify-between items-center gap-4">
-                <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-green-500 dark:from-indigo-400 dark:to-green-400 shrink-0">
+                <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-green-500 dark:from-indigo-400 dark:to-green-400">
                     {t('header.title')}
                 </h1>
                 <div className="flex items-center gap-2">
@@ -402,7 +402,7 @@ const App: React.FC = () => {
               onAddNew={handleAddNewClick}
               onEdit={handleStartEdit}
               onDelete={handleDeleteItem}
-              onImageClick={setSelectedImage}
+              onViewDetails={handleViewDetails}
               onAddToShoppingList={handleAddToShoppingList}
            />
         ) : (
@@ -424,7 +424,7 @@ const App: React.FC = () => {
               items={filteredAndSortedItems} 
               onDelete={handleDeleteItem} 
               onEdit={handleStartEdit}
-              onImageClick={setSelectedImage}
+              onViewDetails={handleViewDetails}
               onAddToShoppingList={handleAddToShoppingList}
             />
           </>
@@ -462,8 +462,10 @@ const App: React.FC = () => {
       {isShoppingListOpen && <ShoppingListModal items={foodItems} shoppingListItems={shoppingList} onRemove={handleRemoveFromShoppingList} onClear={handleClearShoppingList} onClose={() => setIsShoppingListOpen(false)} />}
 
       {potentialDuplicates.length > 0 && itemToAdd && (
-        <DuplicateConfirmationModal items={potentialDuplicates} itemName={itemToAdd.name} onConfirm={handleConfirmDuplicateAdd} onCancel={handleCancelDuplicateAdd} onImageClick={setSelectedImage} />
+        <DuplicateConfirmationModal items={potentialDuplicates} itemName={itemToAdd.name} onConfirm={handleConfirmDuplicateAdd} onCancel={handleCancelDuplicateAdd} />
       )}
+      
+      {detailItem && <FoodItemDetailModal item={detailItem} onClose={() => setDetailItem(null)} onEdit={() => handleStartEdit(detailItem.id)} onImageClick={setSelectedImage} />}
 
       {isItemTypeModalVisible && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 animate-fade-in" onClick={() => setIsItemTypeModalVisible(false)} role="dialog" aria-modal="true">
@@ -490,7 +492,7 @@ const App: React.FC = () => {
                 <p className="text-gray-600 dark:text-gray-400 mb-4">{t('modal.shared.description')}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-500 italic -mt-2 mb-4">{t('modal.shared.summaryNotice')}</p>
                 <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 flex-1 overflow-y-auto">
-                    <SharedItemDetailView item={sharedItemToShow} onImageClick={setSelectedImage} />
+                    <FoodItemDetailView item={{ ...sharedItemToShow, id: 'shared-item-preview' }} onImageClick={setSelectedImage} />
                 </div>
                 <div className="mt-6 flex flex-col sm:flex-row justify-end gap-4 border-t border-gray-200 dark:border-gray-700 pt-6">
                 <button onClick={() => setSharedItemToShow(null)} className="w-full sm:w-auto px-6 py-2 bg-gray-500 hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-700 text-white rounded-md font-semibold transition-colors">{t('modal.shared.close')}</button>

@@ -1,4 +1,4 @@
-import React, { useState, FormEvent, useRef, useEffect } from 'react';
+import React, { useState, FormEvent, useRef, useEffect, useCallback } from 'react';
 import { FoodItem, FoodItemType, NutriScore } from '../types';
 import { BoundingBox, analyzeFoodImage, analyzeIngredientsImage, hasValidApiKey, findNearbyRestaurants } from '../services/geminiService';
 import { fetchProductFromOpenFoodFacts, searchProductByNameFromOpenFoodFacts } from '../services/openFoodFactsService';
@@ -91,6 +91,25 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const resetFormState = useCallback(() => {
+    setName('');
+    setRating(0);
+    setNotes('');
+    setImage(null);
+    setNutriScore('');
+    setPurchaseLocation('');
+    setTags('');
+    setIngredients([]);
+    setAllergens([]);
+    setDietary({ isLactoseFree: false, isVegan: false, isGlutenFree: false });
+    setRestaurantName('');
+    setCuisineType('');
+    setPrice('');
+    setError(null);
+    setIsLoading(false);
+    if(fileInputRef.current) fileInputRef.current.value = '';
+  }, []);
+
   useEffect(() => {
     if (initialData) {
       setName(initialData.name);
@@ -117,7 +136,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
     } else {
       resetFormState();
     }
-  }, [initialData]);
+  }, [initialData, resetFormState]);
 
   useEffect(() => {
     if (highlightedFields.length > 0) {
@@ -128,7 +147,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
     }
   }, [highlightedFields]);
 
-  const handleFindNearby = () => {
+  const handleFindNearby = useCallback(() => {
     setLocationError(null);
     setNearbyRestaurants([]);
     setIsFindingRestaurants(true);
@@ -163,47 +182,27 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
       },
       { timeout: 10000 }
     );
-  };
+  }, [t]);
 
   useEffect(() => {
     // Automatically search for restaurants when adding a new dish
     if (itemType === 'dish' && !isEditing && isAiAvailable) {
       handleFindNearby();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemType, isEditing, isAiAvailable]);
+  }, [itemType, isEditing, isAiAvailable, handleFindNearby]);
 
 
-  const resetFormState = () => {
-    setName('');
-    setRating(0);
-    setNotes('');
-    setImage(null);
-    setNutriScore('');
-    setPurchaseLocation('');
-    setTags('');
-    setIngredients([]);
-    setAllergens([]);
-    setDietary({ isLactoseFree: false, isVegan: false, isGlutenFree: false });
-    setRestaurantName('');
-    setCuisineType('');
-    setPrice('');
-    setError(null);
-    setIsLoading(false);
-    if(fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const handleScanMainImage = () => {
+  const handleScanMainImage = useCallback(() => {
     setScanMode('main');
     setIsCameraOpen(true);
-  };
+  }, []);
 
-  const handleScanIngredients = () => {
+  const handleScanIngredients = useCallback(() => {
     setScanMode('ingredients');
     setIsCameraOpen(true);
-  };
+  }, []);
 
-  const processSpokenProductName = async (productName: string) => {
+  const processSpokenProductName = useCallback(async (productName: string) => {
     if (!productName || !isOffSearchEnabled || itemType === 'dish') return;
     
     setIsNameSearchLoading(true);
@@ -241,7 +240,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
       }
 
       setTags(current => (current ? `${current}, ` : '') + mergedData.tags.join(', '));
-      if(!nutriScore) setNutriScore(mergedData.nutriScore);
+      setNutriScore(current => current || mergedData.nutriScore);
       setIngredients(current => [...current, ...mergedData.ingredients]);
       setAllergens(current => [...current, ...mergedData.allergens]);
       setDietary(current => ({
@@ -256,9 +255,9 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
     } finally {
       setIsNameSearchLoading(false);
     }
-  };
+  }, [isOffSearchEnabled, itemType, language]);
   
-  const handleDictationResult = (transcript: string) => {
+  const handleDictationResult = useCallback((transcript: string) => {
     setIsSpeechModalOpen(false);
     if (transcript) {
       setName(transcript);
@@ -266,9 +265,9 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
         processSpokenProductName(transcript);
       }
     }
-  };
+  }, [itemType, processSpokenProductName]);
   
-  const handleBarcodeScanned = async (barcode: string) => {
+  const handleBarcodeScanned = useCallback(async (barcode: string) => {
     setIsBarcodeScannerOpen(false);
     setError(null);
 
@@ -321,9 +320,13 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
     } finally {
         setIsLoading(false);
     }
-  };
+  }, [isOffSearchEnabled, t, language, isAiAvailable]);
 
-  const handleImageFromCamera = async (imageDataUrl: string) => {
+  const textsNeedTranslation = useCallback((data: {name:string, tags:string[], ingredients:string[], allergens:string[]}) => {
+    return data.name || data.tags.length > 0 || data.ingredients.length > 0 || data.allergens.length > 0;
+  }, []);
+
+  const handleImageFromCamera = useCallback(async (imageDataUrl: string) => {
     setIsCameraOpen(false);
     setError(null);
   
@@ -476,27 +479,24 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
         setIngredientsLoading(false);
       }
     }
-  };
+  }, [itemType, isAiAvailable, scanMode, t, isOffSearchEnabled, language, textsNeedTranslation]);
 
-  const textsNeedTranslation = (data: {name:string, tags:string[], ingredients:string[], allergens:string[]}) => {
-    return data.name || data.tags.length > 0 || data.ingredients.length > 0 || data.allergens.length > 0;
-  }
 
-  const handleCropComplete = (croppedImageUrl: string) => {
+  const handleCropComplete = useCallback((croppedImageUrl: string) => {
     setImage(croppedImageUrl);
     setIsCropperOpen(false);
     setUncroppedImage(null);
     setSuggestedCrop(null);
-  };
+  }, []);
   
-  const handleCropCancel = () => {
+  const handleCropCancel = useCallback(() => {
     if (uncroppedImage) setImage(uncroppedImage);
     setIsCropperOpen(false);
     setUncroppedImage(null);
     setSuggestedCrop(null);
-  };
+  }, [uncroppedImage]);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     setScanMode('main'); // File upload is always for the main image
     const file = event.target.files?.[0];
     if (file) {
@@ -506,13 +506,13 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
       };
       reader.readAsDataURL(file);
     }
-  };
+  }, [handleImageFromCamera]);
 
-  const handleDietaryChange = (key: keyof typeof dietary) => {
+  const handleDietaryChange = useCallback((key: keyof typeof dietary) => {
     setDietary(prev => ({...prev, [key]: !prev[key]}));
-  }
+  }, []);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = useCallback((e: FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -549,12 +549,12 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
           price: price !== '' ? Number(price) : undefined,
         });
     }
-  };
+  }, [name, rating, t, notes, image, tags, itemType, onSaveItem, nutriScore, purchaseLocation, ingredients, allergens, dietary, restaurantName, cuisineType, price]);
 
-  const removeImage = () => {
+  const removeImage = useCallback(() => {
     setImage(null);
     if(fileInputRef.current) fileInputRef.current.value = '';
-  }
+  }, []);
   
   return (
     <>
@@ -719,7 +719,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                       )}
                     </div>
 
-                    <div className="flex gap-4">
+                    <div className="flex flex-col sm:flex-row gap-4">
                        <input
                             type="text"
                             placeholder={t('form.placeholder.cuisine')}
@@ -733,7 +733,7 @@ export const FoodItemForm: React.FC<FoodItemFormProps> = ({ onSaveItem, onCancel
                             value={price}
                             onChange={e => setPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
                             step="0.01"
-                            className="w-1/3 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3"
+                            className="w-full sm:w-1/3 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-3"
                         />
                     </div>
                   </>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { FoodItem, NutriScore } from '../types';
-import { StarIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon } from './Icons';
+import { StarIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon, BuildingStorefrontIcon, DocumentTextIcon } from './Icons';
 import { AllergenDisplay } from './AllergenDisplay';
 import { useTranslation } from '../i18n/index';
 import { useTranslatedItem } from '../hooks/useTranslatedItem';
@@ -18,8 +18,30 @@ const nutriScoreColors: Record<NutriScore, string> = {
   E: 'bg-red-600',
 };
 
+const DietaryIcon: React.FC<{ type: 'lactoseFree' | 'vegan' | 'glutenFree', className?: string }> = ({ type, className }) => {
+    const { t } = useTranslation();
+    const icons = {
+        lactoseFree: <LactoseFreeIcon className={`${className} text-blue-600 dark:text-blue-400`} />,
+        vegan: <VeganIcon className={`${className}`} />,
+        glutenFree: <GlutenFreeIcon className={`${className}`} />,
+    };
+    const tooltips = {
+        lactoseFree: t('card.lactoseFreeTooltip'),
+        vegan: t('card.veganTooltip'),
+        glutenFree: t('card.glutenFreeTooltip'),
+    };
+    return (
+        <div className="relative group flex items-center justify-center">
+            {icons[type]}
+            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                {tooltips[type]}
+            </span>
+        </div>
+    );
+}
+
 export const FoodItemDetailView: React.FC<FoodItemDetailViewProps> = ({ item, onImageClick }) => {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const displayItem = useTranslatedItem(item);
 
   if (!displayItem) {
@@ -31,27 +53,6 @@ export const FoodItemDetailView: React.FC<FoodItemDetailViewProps> = ({ item, on
   const hasIngredients = displayItem.itemType === 'product' && displayItem.ingredients && displayItem.ingredients.length > 0;
   const hasTags = displayItem.tags && displayItem.tags.length > 0;
   
-  const DietaryIcon: React.FC<{ type: 'lactoseFree' | 'vegan' | 'glutenFree', className?: string }> = ({ type, className }) => {
-      const icons = {
-          lactoseFree: <LactoseFreeIcon className={`${className} text-blue-600 dark:text-blue-400`} />,
-          vegan: <VeganIcon className={`${className}`} />,
-          glutenFree: <GlutenFreeIcon className={`${className}`} />,
-      };
-      const tooltips = {
-          lactoseFree: t('card.lactoseFreeTooltip'),
-          vegan: t('card.veganTooltip'),
-          glutenFree: t('card.glutenFreeTooltip'),
-      };
-      return (
-          <div className="relative group flex items-center justify-center">
-              {icons[type]}
-              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                  {tooltips[type]}
-              </span>
-          </div>
-      );
-  }
-
   return (
     <div className="space-y-4 text-sm">
       {/* Header with Image, Name, Rating */}
@@ -67,10 +68,35 @@ export const FoodItemDetailView: React.FC<FoodItemDetailViewProps> = ({ item, on
         <div className="flex-1">
           <h3 className="text-xl font-bold text-gray-900 dark:text-white">{displayItem.name}</h3>
           
-          {displayItem.itemType === 'dish' && displayItem.restaurantName && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 truncate italic" title={displayItem.restaurantName}>
-                  {t('card.dishAt', { restaurant: displayItem.restaurantName })}
-              </p>
+          {/* Purchase location for products */}
+          {displayItem.itemType === 'product' && displayItem.purchaseLocation && (
+            <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <BuildingStorefrontIcon className="w-4 h-4" />
+              <p className="truncate italic" title={displayItem.purchaseLocation}>{displayItem.purchaseLocation}</p>
+            </div>
+          )}
+
+          {/* Restaurant details for dishes */}
+          {displayItem.itemType === 'dish' && (
+            <div className="mt-1 space-y-1">
+              {displayItem.restaurantName && (
+                <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+                  <BuildingStorefrontIcon className="w-4 h-4" />
+                  <p className="truncate italic" title={displayItem.restaurantName}>{displayItem.restaurantName}</p>
+                </div>
+              )}
+              {displayItem.cuisineType && (
+                <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+                  <DocumentTextIcon className="w-4 h-4" />
+                  <p className="truncate" title={displayItem.cuisineType}>{displayItem.cuisineType}</p>
+                </div>
+              )}
+               {typeof displayItem.price === 'number' && (
+                <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-300 font-semibold">
+                  <span>{displayItem.price.toLocaleString(language === 'de' ? 'de-DE' : 'en-US', { style: 'currency', currency: language === 'de' ? 'EUR' : 'USD' })}</span>
+                </div>
+              )}
+            </div>
           )}
 
           <div className="flex items-center my-1.5">

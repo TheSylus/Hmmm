@@ -10,7 +10,7 @@ interface DashboardProps {
   onAddNew: () => void;
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
-  onImageClick: (imageUrl: string) => void;
+  onViewDetails: (item: FoodItem) => void;
   onAddToShoppingList: (item: FoodItem) => void;
 }
 

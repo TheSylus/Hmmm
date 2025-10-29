@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import { useTranslation } from '../i18n/index';
 import { SparklesIcon } from './Icons';
@@ -15,7 +15,7 @@ export const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ onKeyVerified, butto
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [isInvalidKeyError, setIsInvalidKeyError] = useState(false);
 
-    const handleTestKey = async () => {
+    const handleTestKey = useCallback(async () => {
         const keyToTest = apiKey.trim();
         if (!keyToTest) return;
         
@@ -55,7 +55,7 @@ export const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ onKeyVerified, butto
             setErrorMessage(message.replace(/\[\w+\/\w+\]\s*/, ''));
             console.error("API Key Test Failed:", e);
         }
-    };
+    }, [apiKey, onKeyVerified]);
 
     const getStatusMessage = () => {
         switch (status) {

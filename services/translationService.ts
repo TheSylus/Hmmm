@@ -1,5 +1,5 @@
 import { Type } from "@google/genai";
-import { getAiClient } from './geminiService';
+import { getAiClient, hasValidApiKey } from './geminiService';
 
 // In-memory cache for translations: cache[targetLang][sourceText] = translatedText
 const cache: Record<string, Record<string, string>> = {};
@@ -14,6 +14,12 @@ export const translateTexts = async (texts: (string | undefined | null)[], targe
         return [];
     }
     
+    // Silently return original texts if no API key is available.
+    // This prevents API calls and console warnings when the user hasn't set up a key.
+    if (!hasValidApiKey()) {
+        return texts.map(t => t || '');
+    }
+
     if (!cache[targetLang]) {
         cache[targetLang] = {};
     }
@@ -90,11 +96,9 @@ Input: ${JSON.stringify(textsToTranslate)}`
         return result;
 
     } catch (error) {
-        if (error instanceof Error && error.message.includes('API key not found in local storage')) {
-            console.warn("Translation skipped: API key not found.");
-        } else {
-            console.error("Error translating texts:", error);
-        }
+        // Log general errors but avoid warning about the missing API key, as it's now handled.
+        console.error("Error translating texts:", error);
+        
         // Fallback for any error
         indicesToTranslate.forEach((originalIndex, i) => {
             result[originalIndex] = textsToTranslate[i];

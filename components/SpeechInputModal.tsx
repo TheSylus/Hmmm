@@ -15,6 +15,7 @@ export const SpeechInputModal: React.FC<SpeechInputModalProps> = ({ onDictate, o
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const recognitionRef = useRef<any>(null);
+  const transcriptRef = useRef('');
 
   useEffect(() => {
     if (!isSpeechSupported) {
@@ -30,14 +31,15 @@ export const SpeechInputModal: React.FC<SpeechInputModalProps> = ({ onDictate, o
     recognitionRef.current = recognition;
 
     recognition.onstart = () => setIsListening(true);
+    
     recognition.onend = () => {
         setIsListening(false);
-        // Use a short timeout to ensure the final transcript is processed before closing.
-        setTimeout(() => {
-            recognition.stop();
-            onDictate(transcript);
-        }, 300);
+        if (recognitionRef.current) {
+            recognitionRef.current.stop();
+        }
+        onDictate(transcriptRef.current);
     };
+
     recognition.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error);
       setIsListening(false);
@@ -49,6 +51,7 @@ export const SpeechInputModal: React.FC<SpeechInputModalProps> = ({ onDictate, o
         .map((result: any) => result[0])
         .map((result: any) => result.transcript)
         .join('');
+      transcriptRef.current = currentTranscript;
       setTranscript(currentTranscript);
     };
 
@@ -59,7 +62,7 @@ export const SpeechInputModal: React.FC<SpeechInputModalProps> = ({ onDictate, o
         recognitionRef.current.stop();
       }
     };
-  }, [language, onDictate, onClose, transcript]);
+  }, [language, onDictate, onClose]);
 
   return (
     <div

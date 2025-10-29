@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { FoodItem } from '../types';
 import { useTranslation } from '../i18n/index';
 import { XMarkIcon, TrashIcon, ShoppingBagIcon, ChevronDownIcon, CameraIcon } from './Icons';
@@ -86,9 +86,9 @@ export const ShoppingListModal: React.FC<ShoppingListModalProps> = ({ items, sho
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
-  const handleExpand = (itemId: string) => {
+  const handleExpand = useCallback((itemId: string) => {
     setExpandedItemId(prev => prev === itemId ? null : itemId);
-  };
+  }, []);
 
   const listItems = useMemo(() => {
     const itemMap = new Map(items.map(item => [item.id, item]));
@@ -117,7 +117,7 @@ export const ShoppingListModal: React.FC<ShoppingListModalProps> = ({ items, sho
   }, [groupedItems, t]);
 
 
-  const handleToggle = (itemId: string) => {
+  const handleToggle = useCallback((itemId: string) => {
     setCheckedItems(prev => {
         const newSet = new Set(prev);
         if (newSet.has(itemId)) {
@@ -127,12 +127,12 @@ export const ShoppingListModal: React.FC<ShoppingListModalProps> = ({ items, sho
         }
         return newSet;
     });
-  };
+  }, []);
 
-  const handleClearCompleted = () => {
+  const handleClearCompleted = useCallback(() => {
     checkedItems.forEach(id => onRemove(id));
     setCheckedItems(new Set());
-  }
+  }, [checkedItems, onRemove]);
 
   return (
     <div

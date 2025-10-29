@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '../i18n/index';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSettings } from '../contexts/AppSettingsContext';
@@ -18,18 +18,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, hasValidA
   const { isAiEnabled, setIsAiEnabled, isBarcodeScannerEnabled, setIsBarcodeScannerEnabled, isOffSearchEnabled, setIsOffSearchEnabled } = useAppSettings();
 
   const [isChangingKey, setIsChangingKey] = useState(false);
+  const [currentApiKey, setCurrentApiKey] = useState<string | null>(null);
 
-  const handleRemoveKey = () => {
+  useEffect(() => {
+    if (hasValidApiKey) {
+      setCurrentApiKey(geminiService.getApiKey());
+    } else {
+      setCurrentApiKey(null);
+    }
+  }, [hasValidApiKey]);
+
+  const handleRemoveKey = useCallback(() => {
       geminiService.removeApiKey();
       setHasValidApiKey(false);
       setIsChangingKey(false);
-  };
+  }, [setHasValidApiKey]);
 
-  const handleKeyVerified = (apiKey: string) => {
+  const handleKeyVerified = useCallback((apiKey: string) => {
       geminiService.saveApiKey(apiKey);
       setHasValidApiKey(true);
       setIsChangingKey(false);
-  };
+  }, [setHasValidApiKey]);
 
   return (
     <div
@@ -87,44 +96,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, hasValidA
             </div>
 
             <hr className="border-gray-200 dark:border-gray-700" />
-
-             {/* API Key Management */}
-            <div>
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">{t('settings.apiManagement.title')}</h3>
-                <div className="bg-gray-100 dark:bg-gray-900/50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{t('settings.apiManagement.description')}</p>
-                    {isChangingKey ? (
-                        <div>
-                            <h4 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('settings.apiKeyTest.title')}</h4>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{t('settings.apiKeyTest.description')}</p>
-                            <ApiKeyTester onKeyVerified={handleKeyVerified} />
-                        </div>
-                    ) : (
-                        <div>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                                <span className="font-semibold">{t('settings.apiManagement.currentKey')}</span>
-                                {hasValidApiKey ? (
-                                    <span className="font-mono text-green-600 dark:text-green-400 ml-2">●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●</span>
-                                ) : (
-                                    <span className="text-gray-500 ml-2">{t('settings.apiManagement.noKey')}</span>
-                                )}
-                            </p>
-                            <div className="flex gap-2 mt-4">
-                                <button onClick={() => setIsChangingKey(true)} className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 transition-colors text-sm">
-                                    {t('settings.apiManagement.changeButton')}
-                                </button>
-                                {hasValidApiKey && (
-                                    <button onClick={handleRemoveKey} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md font-semibold hover:bg-red-700 transition-colors text-sm">
-                                        {t('settings.apiManagement.removeButton')}
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-            
-            <hr className="border-gray-200 dark:border-gray-700" />
             
             {/* Food Database Search Toggle */}
             <div>
@@ -179,6 +150,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, hasValidA
                   <div className={`w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-500 peer-checked:bg-indigo-600 ${!hasValidApiKey ? 'opacity-50' : ''}`}></div>
                 </div>
               </label>
+            </div>
+
+            <hr className="border-gray-200 dark:border-gray-700" />
+
+             {/* API Key Management */}
+            <div>
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">{t('settings.apiManagement.title')}</h3>
+                <div className="bg-gray-100 dark:bg-gray-900/50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{t('settings.apiManagement.description')}</p>
+                    {isChangingKey ? (
+                        <div>
+                            <h4 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('settings.apiKeyTest.title')}</h4>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{t('settings.apiKeyTest.description')}</p>
+                            <ApiKeyTester onKeyVerified={handleKeyVerified} />
+                        </div>
+                    ) : (
+                        <div>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                <span className="font-semibold">{t('settings.apiManagement.currentKey')}</span>
+                                {hasValidApiKey && currentApiKey ? (
+                                    <span className="font-mono text-gray-500 dark:text-gray-400 ml-2 tracking-widest">••••••••••••••••</span>
+                                ) : (
+                                    <span className="text-gray-500 ml-2">{t('settings.apiManagement.noKey')}</span>
+                                )}
+                            </p>
+                            <div className="flex gap-2 mt-4">
+                                <button onClick={() => setIsChangingKey(true)} className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 transition-colors text-sm">
+                                    {t('settings.apiManagement.changeButton')}
+                                </button>
+                                {hasValidApiKey && (
+                                    <button onClick={handleRemoveKey} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md font-semibold hover:bg-red-700 transition-colors text-sm">
+                                        {t('settings.apiManagement.removeButton')}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
 

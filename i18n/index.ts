@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, useContext, ReactNode, useMemo, useCallback } from 'react';
 
 const enTranslations = {
   "header.title": "Food Memory Tracker",
@@ -186,6 +186,7 @@ const enTranslations = {
   "apiKeyModal.button.testAndSave": "Test & Save Key",
   "apiKeyModal.link.whereToGet": "Where do I get a key?",
   "apiKeyBanner.text": "Enable AI features by adding a Google Gemini API key in the settings.",
+  "apiKeyBanner.button": "Add Key",
   "allergen.gluten": "Contains Gluten",
   "allergen.dairy": "Contains Dairy",
   "allergen.peanuts": "Contains Peanuts",
@@ -387,6 +388,7 @@ const deTranslations = {
   "apiKeyModal.button.testAndSave": "Schlüssel testen & speichern",
   "apiKeyModal.link.whereToGet": "Wo bekomme ich einen Schlüssel?",
   "apiKeyBanner.text": "Aktivieren Sie KI-Funktionen, indem Sie in den Einstellungen einen Google Gemini API-Schlüssel hinzufügen.",
+  "apiKeyBanner.button": "Schlüssel hinzufügen",
   "allergen.gluten": "Enthält Gluten",
   "allergen.dairy": "Enthält Milchprodukte",
   "allergen.peanuts": "Enthält Erdnüsse",
@@ -436,7 +438,7 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return getInitialLocale();
   });
 
-  const t: TFunction = (key, options) => {
+  const t: TFunction = useCallback((key, options) => {
     const translationSet = translationsData[language];
     let translation = translationSet[key] || key;
     if (options) {
@@ -445,18 +447,18 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
     }
     return translation;
-  };
+  }, [language]);
   
-  const handleSetLanguage = (lang: 'en' | 'de') => {
+  const handleSetLanguage = useCallback((lang: 'en' | 'de') => {
       setLanguage(lang);
       localStorage.setItem('language', lang);
-  }
+  }, []);
 
   useEffect(() => {
       document.documentElement.lang = language;
   }, [language]);
 
-  const value = { t, setLanguage: handleSetLanguage, language };
+  const value = useMemo(() => ({ t, setLanguage: handleSetLanguage, language }), [t, handleSetLanguage, language]);
 
   return React.createElement(I18nContext.Provider, { value }, children);
 };
