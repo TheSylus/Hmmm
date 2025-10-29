@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { FoodItem } from './types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { FoodItem, FoodItemType } from './types';
 import { FoodItemForm } from './components/FoodItemForm';
 import { FoodItemList } from './components/FoodItemList';
 import { DuplicateConfirmationModal } from './components/DuplicateConfirmationModal';
@@ -10,7 +10,7 @@ import { ApiKeyModal } from './components/ApiKeyModal';
 import { ApiKeyBanner } from './components/ApiKeyBanner';
 import * as geminiService from './services/geminiService';
 import { useTranslation } from './i18n/index';
-import { PlusCircleIcon, SettingsIcon } from './components/Icons';
+import { PlusCircleIcon, SettingsIcon, ShoppingBagIcon, BuildingStorefrontIcon } from './components/Icons';
 
 // Helper function to decode from URL-safe Base64 and decompress the data
 const decodeAndDecompress = async (base64UrlString: string): Promise<any> => {
@@ -42,7 +42,12 @@ const App: React.FC = () => {
   const [foodItems, setFoodItems] = useState<FoodItem[]>(() => {
     try {
       const savedItems = localStorage.getItem('foodItems');
-      return savedItems ? JSON.parse(savedItems) : [];
+      const parsedItems = savedItems ? JSON.parse(savedItems) : [];
+      // Data migration for items created before itemType was introduced
+      return parsedItems.map((item: any) => ({
+          ...item,
+          itemType: item.itemType || 'product', // Default to 'product'
+      }));
     } catch (error) {
       console.error("Could not parse food items from localStorage", error);
       return [];
@@ -50,7 +55,9 @@ const App: React.FC = () => {
   });
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [filter, setFilter] = useState<'liked' | 'disliked' | 'all'>('all');
+  const [ratingFilter, setRatingFilter] = useState<'liked' | 'disliked' | 'all'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'product' | 'dish'>('all');
+  
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<FoodItem | null>(null);
 
@@ -65,6 +72,9 @@ const App: React.FC = () => {
   const [hasValidApiKey, setHasValidApiKey] = useState<boolean | null>(null);
   const [isBannerDismissed, setIsBannerDismissed] = useState(() => sessionStorage.getItem('apiKeyBannerDismissed') === 'true');
   
+  const [isItemTypeModalVisible, setIsItemTypeModalVisible] = useState(false);
+  const [newItemType, setNewItemType] = useState<FoodItemType>('product');
+
   useEffect(() => {
     const keyExists = geminiService.hasValidApiKey();
     setHasValidApiKey(keyExists);
@@ -83,14 +93,19 @@ const App: React.FC = () => {
             const reconstructedItem: Omit<FoodItem, 'id'> = {
                 name: minified.n || '',
                 rating: minified.r || 0,
+                itemType: minified.it || 'product',
                 notes: minified.no,
-                nutriScore: minified.ns,
                 tags: minified.t,
+                // product specific
+                nutriScore: minified.ns,
                 ingredients: minified.i,
                 allergens: minified.a,
                 isLactoseFree: !!minified.lf,
                 isVegan: !!minified.v,
                 isGlutenFree: !!minified.gf,
+                // dish specific
+                restaurantName: minified.rn,
+                cuisineType: minified.ct,
             };
             
             setSharedItemToShow(reconstructedItem);
@@ -166,6 +181,12 @@ const App: React.FC = () => {
   
   const handleAddNewClick = () => {
     setEditingItem(null);
+    setIsItemTypeModalVisible(true);
+  };
+
+  const handleSelectType = (type: FoodItemType) => {
+    setNewItemType(type);
+    setIsItemTypeModalVisible(false);
     setIsFormVisible(true);
   };
   
@@ -196,18 +217,26 @@ const App: React.FC = () => {
   const filteredItems = useMemo(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
     return foodItems
-      .filter(item => {
-        if (filter === 'all') return true;
-        if (filter === 'liked') return item.rating >= 4;
-        if (filter === 'disliked') return item.rating <= 2 && item.rating > 0;
+      .filter(item => { // Type filter
+        if (typeFilter === 'all') return true;
+        return item.itemType === typeFilter;
+      })
+      .filter(item => { // Rating filter
+        if (ratingFilter === 'all') return true;
+        if (ratingFilter === 'liked') return item.rating >= 4;
+        if (ratingFilter === 'disliked') return item.rating <= 2 && item.rating > 0;
         return true;
       })
-      .filter(item => 
+      .filter(item =>  // Search term filter
         item.name.toLowerCase().includes(lowerCaseSearchTerm) ||
         item.notes?.toLowerCase().includes(lowerCaseSearchTerm) ||
-        item.tags?.join(' ').toLowerCase().includes(lowerCaseSearchTerm)
+        item.tags?.join(' ').toLowerCase().includes(lowerCaseSearchTerm) ||
+        (item.itemType === 'dish' && (
+            item.restaurantName?.toLowerCase().includes(lowerCaseSearchTerm) ||
+            item.cuisineType?.toLowerCase().includes(lowerCaseSearchTerm)
+        ))
       );
-  }, [foodItems, searchTerm, filter]);
+  }, [foodItems, searchTerm, ratingFilter, typeFilter]);
 
   const isSearching = searchTerm.trim() !== '';
 
@@ -239,8 +268,17 @@ const App: React.FC = () => {
                               className="w-48 bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-2"
                           />
                           <select
-                              value={filter}
-                              onChange={e => setFilter(e.target.value as 'liked' | 'disliked' | 'all')}
+                              value={typeFilter}
+                              onChange={e => setTypeFilter(e.target.value as any)}
+                              className="bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-2"
+                          >
+                              <option value="all">{t('header.filter.type.all')}</option>
+                              <option value="product">{t('header.filter.type.products')}</option>
+                              <option value="dish">{t('header.filter.type.dishes')}</option>
+                          </select>
+                          <select
+                              value={ratingFilter}
+                              onChange={e => setRatingFilter(e.target.value as any)}
                               className="bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-2"
                           >
                               <option value="all">{t('header.filter.all')}</option>
@@ -264,15 +302,26 @@ const App: React.FC = () => {
                           onChange={e => setSearchTerm(e.target.value)}
                           className="w-full bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-2"
                       />
-                      <select
-                          value={filter}
-                          onChange={e => setFilter(e.target.value as 'liked' | 'disliked' | 'all')}
-                          className="w-full bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-2"
-                      >
-                          <option value="all">{t('header.filter.all')}</option>
-                          <option value="liked">{t('header.filter.liked')}</option>
-                          <option value="disliked">{t('header.filter.disliked')}</option>
-                      </select>
+                      <div className="grid grid-cols-2 gap-2">
+                        <select
+                            value={typeFilter}
+                            onChange={e => setTypeFilter(e.target.value as any)}
+                            className="w-full bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-2"
+                        >
+                            <option value="all">{t('header.filter.type.all')}</option>
+                            <option value="product">{t('header.filter.type.products')}</option>
+                            <option value="dish">{t('header.filter.type.dishes')}</option>
+                        </select>
+                        <select
+                            value={ratingFilter}
+                            onChange={e => setRatingFilter(e.target.value as any)}
+                            className="w-full bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 dark:text-white p-2"
+                        >
+                            <option value="all">{t('header.filter.all')}</option>
+                            <option value="liked">{t('header.filter.liked')}</option>
+                            <option value="disliked">{t('header.filter.disliked')}</option>
+                        </select>
+                      </div>
                   </div>
               </div>
           )}
@@ -284,6 +333,7 @@ const App: React.FC = () => {
                 onSaveItem={handleSaveItem} 
                 onCancel={handleCancelForm}
                 initialData={editingItem}
+                itemType={editingItem?.itemType || newItemType}
             />
         ) : (
             <div className="text-center mb-8">
@@ -332,6 +382,28 @@ const App: React.FC = () => {
           onCancel={handleCancelDuplicateAdd}
           onImageClick={setSelectedImage}
         />
+      )}
+
+      {isItemTypeModalVisible && (
+        <div 
+            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 animate-fade-in" 
+            onClick={() => setIsItemTypeModalVisible(false)}
+            role="dialog" aria-modal="true"
+        >
+            <div className="relative bg-white dark:bg-gray-800 p-6 rounded-lg shadow-2xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white text-center mb-6">{t('modal.itemType.title')}</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <button onClick={() => handleSelectType('product')} className="flex flex-col items-center gap-3 p-6 bg-gray-100 dark:bg-gray-700/50 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 hover:ring-2 hover:ring-indigo-500 transition-all">
+                        <ShoppingBagIcon className="w-12 h-12 text-indigo-500 dark:text-indigo-400" />
+                        <span className="text-lg font-semibold text-gray-800 dark:text-gray-200">{t('modal.itemType.product')}</span>
+                    </button>
+                     <button onClick={() => handleSelectType('dish')} className="flex flex-col items-center gap-3 p-6 bg-gray-100 dark:bg-gray-700/50 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50 hover:ring-2 hover:ring-green-500 transition-all">
+                        <BuildingStorefrontIcon className="w-12 h-12 text-green-500 dark:text-green-400" />
+                        <span className="text-lg font-semibold text-gray-800 dark:text-gray-200">{t('modal.itemType.dish')}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
       )}
 
       {sharedItemToShow && (

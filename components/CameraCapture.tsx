@@ -41,9 +41,15 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose
                 };
             }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error accessing rear camera, trying fallback:", err);
-        // Fallback to any camera if environment (rear) camera fails
+
+        if (err.name === 'NotAllowedError') {
+            if (isMounted) setError(t('camera.error.permission'));
+            return; // Don't try fallback if permission is denied
+        }
+        
+        // Fallback to any camera if environment (rear) camera fails for other reasons
         try {
           const fallbackConstraints = { video: true, audio: false };
           const mediaStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
@@ -56,10 +62,14 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose
                 };
             }
           }
-        } catch (fallbackErr) {
+        } catch (fallbackErr: any) {
           console.error("Error accessing any camera:", fallbackErr);
           if (isMounted) {
-            setError(t('camera.error'));
+            if (fallbackErr.name === 'NotAllowedError') {
+                setError(t('camera.error.permission'));
+            } else {
+                setError(t('camera.error'));
+            }
           }
         }
       }

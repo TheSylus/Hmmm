@@ -1,6 +1,6 @@
 import React from 'react';
 import { FoodItem, NutriScore } from '../types';
-import { StarIcon, TrashIcon, PencilIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon, ShareIcon } from './Icons';
+import { StarIcon, TrashIcon, PencilIcon, LactoseFreeIcon, VeganIcon, GlutenFreeIcon, ShareIcon, ShoppingBagIcon, BuildingStorefrontIcon } from './Icons';
 import { AllergenDisplay } from './AllergenDisplay';
 import { useTranslation } from '../i18n/index';
 import { useTranslatedItem } from '../hooks/useTranslatedItem';
@@ -53,18 +53,22 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
       // Create a minified object for sharing. To keep the URL short,
       // we exclude potentially long fields like notes, ingredients, and allergens.
       const { id, image, ...dataToShare } = item;
-      const minified = {
+      const minified: any = {
         n: dataToShare.name,
         r: dataToShare.rating,
-        // no: dataToShare.notes,      // Excluded for brevity
-        ns: dataToShare.nutriScore,
+        it: dataToShare.itemType,
         t: dataToShare.tags,
-        // i: dataToShare.ingredients, // Excluded for brevity
-        // a: dataToShare.allergens,   // Excluded for brevity
-        lf: dataToShare.isLactoseFree,
-        v: dataToShare.isVegan,
-        gf: dataToShare.isGlutenFree,
       };
+
+      if (dataToShare.itemType === 'product') {
+          minified.ns = dataToShare.nutriScore;
+          minified.lf = dataToShare.isLactoseFree;
+          minified.v = dataToShare.isVegan;
+          minified.gf = dataToShare.isGlutenFree;
+      } else {
+          minified.rn = dataToShare.restaurantName;
+          minified.ct = dataToShare.cuisineType;
+      }
       
       // Clean up undefined/null values and empty arrays to make the JSON string even smaller
       Object.keys(minified).forEach((key) => {
@@ -108,7 +112,7 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
     return null; // Render nothing if the item is not available
   }
   
-  const hasDietaryOrAllergens = displayItem.isLactoseFree || displayItem.isVegan || displayItem.isGlutenFree || (displayItem.allergens && displayItem.allergens.length > 0);
+  const hasDietaryOrAllergens = displayItem.itemType === 'product' && (displayItem.isLactoseFree || displayItem.isVegan || displayItem.isGlutenFree || (displayItem.allergens && displayItem.allergens.length > 0));
   const hasTags = displayItem.tags && displayItem.tags.length > 0;
 
   const DietaryIcon: React.FC<{ type: 'lactoseFree' | 'vegan' | 'glutenFree', className?: string }> = ({ type, className }) => {
@@ -134,6 +138,16 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md dark:shadow-lg flex flex-col p-4 transition-all duration-300 hover:shadow-xl dark:hover:shadow-2xl hover:-translate-y-1 relative">
+        <div className="absolute top-3 left-3 group z-10">
+            {displayItem.itemType === 'dish' ? (
+                <BuildingStorefrontIcon className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+            ) : (
+                <ShoppingBagIcon className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+            )}
+            <span className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                {t(displayItem.itemType === 'dish' ? 'card.dishTooltip' : 'card.productTooltip')}
+            </span>
+        </div>
         <div className="flex items-start gap-4">
             {/* Image Thumbnail */}
             {displayItem.image && (
@@ -146,15 +160,21 @@ export const FoodItemCard: React.FC<FoodItemCardProps> = ({ item, onDelete, onEd
             )}
 
             {/* Core Details Section */}
-            <div className="flex-1 flex flex-col justify-start self-stretch overflow-hidden">
+            <div className={`flex-1 flex flex-col justify-start self-stretch overflow-hidden ${!displayItem.image ? 'pl-8' : ''}`}>
                 <h3 className={`text-lg font-bold text-gray-900 dark:text-white truncate ${isPreview ? '' : 'pr-20'}`} title={displayItem.name}>{displayItem.name}</h3>
+                
+                {displayItem.itemType === 'dish' && displayItem.restaurantName && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate italic -mt-1" title={displayItem.restaurantName}>
+                      {t('card.dishAt', { restaurant: displayItem.restaurantName })}
+                  </p>
+                )}
                 
                 <div className="flex items-center my-1.5">
                     {[1, 2, 3, 4, 5].map(star => (
                         <StarIcon key={star} className={`w-5 h-5 ${displayItem.rating >= star ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`} filled={displayItem.rating >= star} />
                     ))}
                     
-                    {displayItem.nutriScore && (
+                    {displayItem.itemType === 'product' && displayItem.nutriScore && (
                         <div className={`ml-3 text-xs w-6 h-6 rounded-full text-white font-bold flex items-center justify-center flex-shrink-0 ${nutriScoreColors[displayItem.nutriScore]}`}>
                         {displayItem.nutriScore}
                         </div>

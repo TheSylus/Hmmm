@@ -27,9 +27,9 @@ export const SharedItemDetailView: React.FC<SharedItemDetailViewProps> = ({ item
     return null; // Or a loading state
   }
   
-  const hasDietary = displayItem.isLactoseFree || displayItem.isVegan || displayItem.isGlutenFree;
-  const hasAllergens = displayItem.allergens && displayItem.allergens.length > 0;
-  const hasIngredients = displayItem.ingredients && displayItem.ingredients.length > 0;
+  const hasDietary = displayItem.itemType === 'product' && (displayItem.isLactoseFree || displayItem.isVegan || displayItem.isGlutenFree);
+  const hasAllergens = displayItem.itemType === 'product' && displayItem.allergens && displayItem.allergens.length > 0;
+  const hasIngredients = displayItem.itemType === 'product' && displayItem.ingredients && displayItem.ingredients.length > 0;
   const hasTags = displayItem.tags && displayItem.tags.length > 0;
   
   const DietaryIcon: React.FC<{ type: 'lactoseFree' | 'vegan' | 'glutenFree', className?: string }> = ({ type, className }) => {
@@ -67,11 +67,18 @@ export const SharedItemDetailView: React.FC<SharedItemDetailViewProps> = ({ item
         )}
         <div className="flex-1">
           <h3 className="text-xl font-bold text-gray-900 dark:text-white">{displayItem.name}</h3>
+          
+          {displayItem.itemType === 'dish' && displayItem.restaurantName && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 truncate italic" title={displayItem.restaurantName}>
+                  {t('card.dishAt', { restaurant: displayItem.restaurantName })}
+              </p>
+          )}
+
           <div className="flex items-center my-1.5">
             {[1, 2, 3, 4, 5].map(star => (
               <StarIcon key={star} className={`w-5 h-5 ${displayItem.rating >= star ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`} filled={displayItem.rating >= star} />
             ))}
-            {displayItem.nutriScore && (
+            {displayItem.itemType === 'product' && displayItem.nutriScore && (
               <div className={`ml-3 text-xs w-6 h-6 rounded-full text-white font-bold flex items-center justify-center flex-shrink-0 ${nutriScoreColors[displayItem.nutriScore]}`}>
                 {displayItem.nutriScore}
               </div>
@@ -100,8 +107,7 @@ export const SharedItemDetailView: React.FC<SharedItemDetailViewProps> = ({ item
         </div>
       )}
 
-      {/* Dietary & Allergens Grid */}
-      {(hasDietary || hasAllergens) && (
+      {displayItem.itemType === 'product' && (hasDietary || hasAllergens) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-gray-200 dark:border-gray-700/50">
           {hasDietary && (
             <div>

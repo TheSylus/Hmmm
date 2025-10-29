@@ -198,3 +198,55 @@ export const analyzeIngredientsImage = async (base64Image: string): Promise<{ in
       throw new Error("Could not analyze ingredients list with AI.");
     }
   };
+
+export const findNearbyRestaurants = async (latitude: number, longitude: number): Promise<{ name: string; cuisine?: string }[]> => {
+  try {
+    const gemini = getAiClient();
+
+    const response = await gemini.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: { parts: [{ text: "List up to 10 restaurants near the provided location. For each, provide its name and main cuisine type. If cuisine is unknown, omit it." }] },
+      tools: [{ googleMaps: {} }],
+      toolConfig: {
+        retrievalConfig: {
+          latLng: {
+            latitude,
+            longitude
+          }
+        }
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          description: "A list of nearby restaurants.",
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: {
+                type: Type.STRING,
+                description: "The name of the restaurant."
+              },
+              cuisine: {
+                type: Type.STRING,
+                description: "The main cuisine type of the restaurant (e.g., Italian, Mexican)."
+              }
+            },
+            required: ["name"]
+          }
+        }
+      }
+    });
+
+    const jsonString = response.text;
+    const result = JSON.parse(jsonString);
+    return result;
+
+  } catch (error) {
+    console.error("Error finding nearby restaurants:", error);
+    if (error instanceof Error) {
+        throw error;
+    }
+    throw new Error("Could not find nearby restaurants using AI.");
+  }
+};
